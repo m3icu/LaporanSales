@@ -43,62 +43,62 @@
 <body>
 
 <div class="header">
-  <h1>?? Laporan Sales</h1>
+  <h1>📱 Laporan Sales</h1>
   <small id="headerSub"></small>
 </div>
 
 <div class="container">
   <div class="card hidden" id="activeVisitCard">
-    <h2>?? Kunjungan Aktif</h2>
+    <h2>🏪 Kunjungan Aktif</h2>
     <div class="info-row"><span>Toko</span><b id="av_toko">-</b></div>
     <div class="info-row"><span>Jam Masuk</span><b id="av_masuk">-</b></div>
     <div class="info-row"><span>Durasi</span><b id="av_durasi">-</b></div>
     <div class="divider"></div>
-    <button class="btn-green" onclick="showOrderForm()">?? Input Orderan</button>
-    <button class="btn-red" onclick="selesaiKunjungan()" style="margin-top:16px;">? SELESAI & KIRIM KE KANTOR</button>
+    <button class="btn-green" onclick="showOrderForm()">🛒 Input Orderan</button>
+    <button class="btn-red" onclick="selesaiKunjungan()" style="margin-top:16px;">✅ SELESAI & KIRIM KE KANTOR</button>
   </div>
 
   <div class="card" id="checkinCard">
-    <h2>?? Check-in Kunjungan Toko</h2>
-    <label>?? Pilih Nama Toko</label>
+    <h2>🟢 Check-in Kunjungan Toko</h2>
+    <label>🏪 Pilih Nama Toko</label>
     <select id="ci_toko" style="width:100%; padding:12px; border:1.5px solid #ddd; border-radius:10px; font-size:15px; background:#fafafa; margin-bottom:10px;">
-      <option value="">? Memuat daftar toko...</option>
+      <option value="">⏳ Memuat daftar toko...</option>
     </select>
 
-    <label>?? Lokasi Koordinat GPS</label>
+    <label>📍 Lokasi Koordinat GPS</label>
     <input type="text" id="ci_lokasi" placeholder="Tekan tombol GPS di bawah" readonly>
     
     <div class="btn-row" style="margin-top:6px;">
-      <button class="btn-gray btn-sm" onclick="getGPS()">?? Ambil GPS & Deteksi</button>
-      <button class="btn-orange btn-sm" onclick="pakaiTokoManual()">?? Ambil GPS Manual</button>
+      <button class="btn-gray btn-sm" onclick="getGPS()">📍 Ambil GPS & Deteksi</button>
+      <button class="btn-orange btn-sm" onclick="pakaiTokoManual()">✏️ Ambil GPS Manual</button>
     </div>
 
-    <label>?? Foto Selfie di Toko (wajib)</label>
-    <button class="btn-gray" onclick="openCamera()" id="btnOpenCam">?? Buka Kamera</button>
+    <label>📸 Foto Selfie di Toko (wajib)</label>
+    <button class="btn-gray" onclick="openCamera()" id="btnOpenCam">📷 Buka Kamera</button>
     <video id="video" autoplay playsinline class="hidden"></video>
     <canvas id="canvas" class="hidden"></canvas>
     <img id="selfiePreview" class="photo-preview hidden">
     <div id="camControls" class="hidden">
       <div class="btn-row">
-        <button class="btn-green" onclick="capturePhoto()">?? Ambil Foto</button>
-        <button class="btn-red" onclick="closeCamera()">? Batal</button>
+        <button class="btn-green" onclick="capturePhoto()">📸 Ambil Foto</button>
+        <button class="btn-red" onclick="closeCamera()">✖ Batal</button>
       </div>
     </div>
 
-    <label>?? Jam Masuk</label>
+    <label>🕐 Jam Masuk</label>
     <input type="text" id="ci_jam" readonly>
 
-    <button class="btn-primary" style="padding:20px;font-size:17px;" onclick="checkIn()">? SIMPAN CHECK-IN</button>
+    <button class="btn-primary" style="padding:20px;font-size:17px;" onclick="checkIn()">✅ SIMPAN CHECK-IN</button>
   </div>
 
   <div class="card hidden" id="orderCard">
-    <h2>?? Input Orderan</h2>
+    <h2>🛒 Input Orderan</h2>
     <div id="productList"></div>
     <button class="btn-gray btn-sm" onclick="addProductRow()">+ Tambah Produk</button>
     <div class="divider"></div>
     <div class="info-row"><span>Total Order</span><b id="orderTotal">Rp 0</b></div>
-    <button class="btn-green" onclick="saveOrder()">?? Simpan Orderan</button>
-    <button class="btn-gray" onclick="hideForms()">? Kembali</button>
+    <button class="btn-green" onclick="saveOrder()">💾 Simpan Orderan</button>
+    <button class="btn-gray" onclick="hideForms()">⬅ Kembali</button>
   </div>
 </div>
 
@@ -135,14 +135,14 @@ async function loadDaftarToko() {
         opt.textContent = t.nama;
         selectToko.appendChild(opt);
       });
-      toast('? ' + DAFTAR_TOKO.length + ' toko dimuat');
+      toast('✅ ' + DAFTAR_TOKO.length + ' toko dimuat');
     } else {
       selectToko.innerHTML = '<option value="">(Gagal memuat toko)</option>';
-      toast('? Gagal muat data toko');
+      toast('❌ Gagal muat data toko');
     }
   } catch (e) {
     selectToko.innerHTML = '<option value="">(Error koneksi server)</option>';
-    toast('? Error: ' + e.message);
+    toast('❌ Error: ' + e.message);
   }
 }
 
@@ -188,7 +188,7 @@ function getGPS(){
       document.getElementById('ci_lokasi').value = gpsData;
 
       if (DAFTAR_TOKO.length === 0) {
-        toast('?? Daftar toko kosong');
+        toast('⚠️ Daftar toko kosong');
         return;
       }
 
@@ -205,14 +205,14 @@ function getGPS(){
 
       if(jarakTerpendek <= 500){
         document.getElementById('ci_toko').value = tokoTerdekat;
-        toast('? Toko terdeteksi: ' + tokoTerdekat);
+        toast('✅ Toko terdeteksi: ' + tokoTerdekat);
       } else {
-        toast('?? Di luar radius (~' + Math.round(jarakTerpendek) + 'm)');
+        toast('⚠️ Di luar radius (~' + Math.round(jarakTerpendek) + 'm)');
       }
     },
     (err)=>{ 
       document.getElementById('ci_lokasi').value = 'Gagal ambil GPS'; 
-      toast('? GPS Error: ' + err.message); 
+      toast('❌ GPS Error: ' + err.message); 
     },
     { enableHighAccuracy: true, timeout: 10000 }
   );
@@ -225,11 +225,11 @@ function pakaiTokoManual(){
     (pos)=>{
       gpsData = pos.coords.latitude.toFixed(6) + ',' + pos.coords.longitude.toFixed(6);
       document.getElementById('ci_lokasi').value = gpsData;
-      toast('? Koordinat diambil. Silakan pilih toko.');
+      toast('✅ Koordinat diambil. Silakan pilih toko.');
     },
     ()=>{ 
       document.getElementById('ci_lokasi').value = 'Gagal ambil GPS'; 
-      toast('? Gagal mengambil GPS'); 
+      toast('❌ Gagal mengambil GPS'); 
     },
     { enableHighAccuracy: true, timeout: 10000 }
   );
@@ -245,7 +245,7 @@ async function openCamera(){
     document.getElementById('btnOpenCam').classList.add('hidden');
     document.getElementById('selfiePreview').classList.add('hidden');
   }catch(e){ 
-    toast('? Kamera error: ' + e.message); 
+    toast('❌ Kamera error: ' + e.message); 
   }
 }
 
@@ -261,4 +261,146 @@ function capturePhoto(){
   ctx.fillRect(0, c.height - 70, c.width, 70);
   ctx.fillStyle = '#fff'; 
   ctx.font = 'bold 18px sans-serif';
-  const selectedToko = document.getElementById('ci_toko').value ||
+  const selectedToko = document.getElementById('ci_toko').value || 'Toko Lainnya';
+  ctx.fillText('📍 ' + selectedToko, 12, c.height - 42);
+  ctx.font = '14px sans-serif';
+  ctx.fillText('🕐 ' + nowStr() + '  •  ' + (gpsData || '-'), 12, c.height - 18);
+  
+  selfieData = c.toDataURL('image/jpeg', 0.7);
+  const p = document.getElementById('selfiePreview'); 
+  p.src = selfieData; 
+  p.classList.remove('hidden');
+  closeCamera(); 
+  toast('📸 Foto berhasil diambil');
+}
+
+function closeCamera(){
+  if(mediaStream){ 
+    mediaStream.getTracks().forEach(t => t.stop()); 
+    mediaStream = null; 
+  }
+  document.getElementById('video').classList.add('hidden');
+  document.getElementById('camControls').classList.add('hidden');
+  document.getElementById('btnOpenCam').classList.remove('hidden');
+}
+
+function checkIn(){
+  const toko = document.getElementById('ci_toko').value;
+  if(!toko){ toast('⚠️ Pilih nama toko terlebih dahulu'); return; }
+  if(!selfieData){ toast('⚠️ Foto selfie wajib diambil'); return; }
+
+  currentVisit = {
+    tanggal: todayStr(),
+    toko: toko,
+    lokasi: document.getElementById('ci_lokasi').value || '-',
+    jamMasuk: nowStr(),
+    selfie: selfieData
+  };
+  orders = [];
+  selfieData = null;
+
+  document.getElementById('checkinCard').classList.add('hidden');
+  document.getElementById('activeVisitCard').classList.remove('hidden');
+  document.getElementById('av_toko').textContent = currentVisit.toko;
+  document.getElementById('av_masuk').textContent = currentVisit.jamMasuk;
+  updateDurasi();
+
+  document.getElementById('ci_lokasi').value = '';
+  document.getElementById('selfiePreview').classList.add('hidden');
+
+  toast('✅ Check-in berhasil');
+}
+
+function updateDurasi(){
+  if(!currentVisit) return;
+  const start = new Date(); 
+  start.setHours(...currentVisit.jamMasuk.split(':').map(Number),0);
+  const diff = Math.floor((Date.now() - start.getTime()) / 60000);
+  document.getElementById('av_durasi').textContent = diff + ' menit';
+}
+
+function showOrderForm(){
+  document.getElementById('orderCard').classList.remove('hidden');
+  document.getElementById('activeVisitCard').classList.add('hidden');
+  document.getElementById('productList').innerHTML = '';
+  addProductRow();
+}
+
+function hideForms(){
+  document.getElementById('orderCard').classList.add('hidden');
+  document.getElementById('activeVisitCard').classList.remove('hidden');
+}
+
+function addProductRow(){
+  const div = document.createElement('div'); 
+  div.className = 'product-row';
+  div.innerHTML = `
+    <input placeholder="Produk" class="p-nama">
+    <input type="number" placeholder="Qty" class="p-qty" min="1" value="1" oninput="calcTotal()">
+    <input type="number" placeholder="Harga" class="p-harga" min="0" value="0" oninput="calcTotal()">
+    <button class="btn-red btn-sm" onclick="this.parentElement.remove();calcTotal()">✖</button>`;
+  document.getElementById('productList').appendChild(div);
+}
+
+function calcTotal(){
+  let total = 0;
+  document.querySelectorAll('.product-row').forEach(r => {
+    const q = +r.querySelector('.p-qty').value || 0;
+    const h = +r.querySelector('.p-harga').value || 0;
+    total += q * h;
+  });
+  document.getElementById('orderTotal').textContent = rupiah(total);
+}
+
+function saveOrder(){
+  const items = [];
+  document.querySelectorAll('.product-row').forEach(r => {
+    const nama = r.querySelector('.p-nama').value.trim();
+    const qty = +r.querySelector('.p-qty').value || 0;
+    const harga = +r.querySelector('.p-harga').value || 0;
+    if(nama && qty > 0) items.push({nama, qty, harga, subtotal: qty * harga});
+  });
+  if(!items.length){ toast('⚠️ Tambah minimal 1 produk'); return; }
+  orders = orders.concat(items);
+  const total = orders.reduce((s,i) => s + i.subtotal, 0);
+  toast('✅ Orderan ditambah: ' + rupiah(total));
+  hideForms();
+}
+
+async function selesaiKunjungan(){
+  if(!currentVisit) return;
+  if(!confirm('Kirim laporan kunjungan ini ke kantor?')) return;
+
+  const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0);
+  const jamKeluar = nowStr();
+
+  const formData = new FormData();
+  formData.append('tanggal', currentVisit.tanggal);
+  formData.append('toko', currentVisit.toko);
+  formData.append('jamMasuk', currentVisit.jamMasuk);
+  formData.append('jamKeluar', jamKeluar);
+  formData.append('totalOrder', totalOrder.toString());
+  formData.append('foto', currentVisit.selfie || '');
+
+  toast('⏳ Mengirim ke kantor...');
+
+  try {
+    const response = await fetch(API_URL, { method: 'POST', body: formData });
+    const result = await response.json();
+
+    if(result.result === 'success'){
+      toast('✅ Laporan terkirim!');
+      currentVisit = null;
+      orders = [];
+      document.getElementById('activeVisitCard').classList.add('hidden');
+      document.getElementById('checkinCard').classList.remove('hidden');
+    } else {
+      toast('❌ Gagal: ' + (result.message || 'Error'));
+    }
+  } catch(e){
+    toast('❌ Error jaringan: ' + e.message);
+  }
+}
+</script>
+</body>
+</html>
