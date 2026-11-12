@@ -20,7 +20,6 @@
   .btn-primary { background:linear-gradient(135deg,#1e6fdb,#0d47a1); color:#fff; }
   .btn-primary:active { transform:scale(.98); }
   .btn-green { background:#0a8f4d; color:#fff; }
-  .btn-orange { background:#e67e22; color:#fff; }
   .btn-red { background:#c0392b; color:#fff; }
   .btn-gray { background:#eee; color:#333; }
   .btn-sm { width:auto; padding:8px 14px; font-size:13px; margin:0; }
@@ -60,12 +59,14 @@
 
   <div class="card" id="checkinCard">
     <h2>?? Check-in Kunjungan Toko</h2>
-    <label>?? Nama Toko</label>
-    <input type="text" id="ci_toko" placeholder="Contoh: Sumber Rejeki">
+    <label>?? Nama Toko (Otomatis via GPS / Bisa dipilih)</label>
+    <select id="ci_toko" style="width:100%; padding:12px; border:1.5px solid #ddd; border-radius:10px; font-size:15px; background:#fafafa; margin-bottom:10px;">
+      <option value="">-- Pilih Toko / Deteksi GPS --</option>
+    </select>
 
-    <label>?? Lokasi (otomatis via GPS)</label>
+    <label>?? Lokasi Koordinat GPS</label>
     <input type="text" id="ci_lokasi" placeholder="Tekan tombol di bawah" readonly>
-    <button class="btn-gray btn-sm" onclick="getGPS()" style="margin-top:6px;">?? Ambil Lokasi GPS</button>
+    <button class="btn-gray btn-sm" onclick="getGPS()" style="margin-top:6px;">?? Ambil Lokasi GPS & Deteksi Toko</button>
 
     <label>?? Foto Selfie di Toko (wajib)</label>
     <button class="btn-gray" onclick="openCamera()" id="btnOpenCam">?? Buka Kamera</button>
@@ -100,9 +101,19 @@
 
 <script>
 // ============================================================
-// TEMPELKAN URL WEB APP GOOGLE APPS SCRIPT ANDA DI SINI
+// 1. URL WEB APP GOOGLE APPS SCRIPT ANDA
 // ============================================================
 const API_URL = 'https://script.google.com/macros/s/AKfycbwSXvFAa0l1tkb7UVCyBomEiqeVz0RRbkvym6GGj0ilpaYNkGJhiPuTEGLpJPKyCaEP/exec';
+
+// ============================================================
+// 2. DATABASE DAFTAR TOKO & TITIK KOORDINATNYA (LAT, LNG)
+// (Silakan ubah/tambah sesuai titik toko langganan Anda)
+// ============================================================
+const DAFTAR_TOKO = [
+  { nama: "Toko Sumber Rejeki", lat: -6.917500, lng: 107.619100 },
+  { nama: "Toko Berkah Jaya", lat: -6.922000, lng: 107.605000 },
+  { nama: "Minimarket Maju Lancar", lat: -6.903000, lng: 107.618000 }
+];
 
 let currentVisit = null;
 let selfieData = null;
@@ -110,21 +121,69 @@ let mediaStream = null;
 let gpsData = null;
 let orders = [];
 
+// Muat pilihan toko ke dalam elemen <select> saat halaman dibuka
+window.onload = function() {
+  const selectToko = document.getElementById('ci_toko');
+  DAFTAR_TOKO.forEach(t => {
+    let opt = document.createElement('option');
+    opt.value = t.nama;
+    opt.textContent = t.nama;
+    selectToko.appendChild(opt);
+  });
+  document.getElementById('ci_jam').value = nowStr();
+  document.getElementById('headerSub').textContent = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+};
+
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
 function nowStr(){ return new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function rupiah(n){ return 'Rp '+(n||0).toLocaleString('id-ID'); }
 
+// Fungsi Hitung Jarak (Haversine Formula) dalam meter
+function hitungJarakMeter(lat1, lon1, lat2, lon2) {
+  const R = 6371e3; // radius bumi dalam meter
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
 function getGPS(){
   if(!navigator.geolocation){ toast('GPS tidak didukung'); return; }
-  document.getElementById('ci_lokasi').value = 'Mengambil...';
+  document.getElementById('ci_lokasi').value = 'Mendeteksi posisi...';
+  
   navigator.geolocation.getCurrentPosition(
     (pos)=>{
-      gpsData = pos.coords.latitude.toFixed(6)+','+pos.coords.longitude.toFixed(6);
+      const userLat = pos.coords.latitude;
+      const userLng = pos.coords.longitude;
+      gpsData = userLat.toFixed(6) + ',' + userLng.toFixed(6);
       document.getElementById('ci_lokasi').value = gpsData;
-      toast('? Lokasi terambil');
+
+      // Cari toko terdekat dalam radius misal 100 meter
+      let tokoTerdekat = "";
+      let jarakTerpendek = 999999;
+
+      DAFTAR_TOKO.forEach(toko => {
+        let jarak = hitungJarakMeter(userLat, userLng, toko.lat, toko.lng);
+        if(jarak < jarakTerpendek){
+          jarakTerpendek = jarak;
+          tokoTerdekat = toko.nama;
+        }
+      });
+
+      // Jika jarak kurang dari 100 meter, otomatis pilih nama tokonya
+      if(jarakTerpendek <= 100){
+        document.getElementById('ci_toko').value = tokoTerdekat;
+        toast('? Toko terdeteksi: ' + tokoTerdekat + ' (' + Math.round(jarakTerpendek) + 'm)');
+      } else {
+        toast('?? Anda berada di luar radius toko terdekat (~' + Math.round(jarakTerpendek) + 'm)');
+      }
     },
-    ()=>{ document.getElementById('ci_lokasi').value='Gagal ambil GPS'; }
+    (err)=>{ document.getElementById('ci_lokasi').value='Gagal ambil GPS'; toast('? GPS Error: '+err.message); },
+    { enableHighAccuracy: true, timeout: 10000 }
   );
 }
 
@@ -144,14 +203,18 @@ function capturePhoto(){
   c.width=v.videoWidth; c.height=v.videoHeight;
   const ctx=c.getContext('2d');
   ctx.drawImage(v,0,0);
+  
+  // Cetak watermark teks info toko, jam, dan GPS di bawah foto
   ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(0,c.height-70,c.width,70);
   ctx.fillStyle='#fff'; ctx.font='bold 18px sans-serif';
-  ctx.fillText('?? '+(document.getElementById('ci_toko').value||'Toko'), 12, c.height-42);
+  const selectedToko = document.getElementById('ci_toko').value || 'Toko Lainnya';
+  ctx.fillText('?? ' + selectedToko, 12, c.height-42);
   ctx.font='14px sans-serif';
   ctx.fillText('?? '+nowStr()+'  •  '+(gpsData||'-'), 12, c.height-18);
+  
   selfieData = c.toDataURL('image/jpeg',0.7);
   const p=document.getElementById('selfiePreview'); p.src=selfieData; p.classList.remove('hidden');
-  closeCamera(); toast('?? Foto diambil');
+  closeCamera(); toast('?? Foto & Watermark diambil');
 }
 
 function closeCamera(){
@@ -162,8 +225,8 @@ function closeCamera(){
 }
 
 function checkIn(){
-  const toko=document.getElementById('ci_toko').value.trim();
-  if(!toko){ toast('?? Isi nama toko'); return; }
+  const toko=document.getElementById('ci_toko').value;
+  if(!toko){ toast('?? Pilih atau deteksi toko dulu'); return; }
   if(!selfieData){ toast('?? Foto selfie wajib'); return; }
 
   currentVisit = {
@@ -183,9 +246,7 @@ function checkIn(){
   updateDurasi();
   setInterval(updateDurasi, 30000);
 
-  document.getElementById('ci_toko').value='';
   document.getElementById('ci_lokasi').value='';
-  document.getElementById('ci_jam').value=nowStr();
   document.getElementById('selfiePreview').classList.add('hidden');
 
   toast('? Check-in: '+currentVisit.toko);
@@ -279,9 +340,6 @@ async function selesaiKunjungan(){
     toast('? Error jaringan: '+e.message);
   }
 }
-
-document.getElementById('ci_jam').value = nowStr();
-document.getElementById('headerSub').textContent = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 </script>
 </body>
 </html>
