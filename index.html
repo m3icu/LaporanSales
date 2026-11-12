@@ -59,9 +59,9 @@
 
   <div class="card" id="checkinCard">
     <h2>?? Check-in Kunjungan Toko</h2>
-    <label>?? Nama Toko (Otomatis via GPS / Bisa dipilih)</label>
+    <label>?? Nama Toko (Otomatis dari Google Sheets)</label>
     <select id="ci_toko" style="width:100%; padding:12px; border:1.5px solid #ddd; border-radius:10px; font-size:15px; background:#fafafa; margin-bottom:10px;">
-      <option value="">-- Pilih Toko / Deteksi GPS --</option>
+      <option value="">? Memuat daftar toko...</option>
     </select>
 
     <label>?? Lokasi Koordinat GPS</label>
@@ -100,48 +100,56 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// ============================================================
-// 1. URL WEB APP GOOGLE APPS SCRIPT ANDA
-// ============================================================
+// URL WEB APP GOOGLE APPS SCRIPT ANDA
 const API_URL = 'https://script.google.com/macros/s/AKfycbwSXvFAa0l1tkb7UVCyBomEiqeVz0RRbkvym6GGj0ilpaYNkGJhiPuTEGLpJPKyCaEP/exec';
 
-// ============================================================
-// 2. DATABASE DAFTAR TOKO & TITIK KOORDINATNYA (LAT, LNG)
-// (Silakan ubah/tambah sesuai titik toko langganan Anda)
-// ============================================================
-const DAFTAR_TOKO = [
-  { nama: "Toko Sumber Rejeki", lat: -6.917500, lng: 107.619100 },
-  { nama: "Toko Berkah Jaya", lat: -6.922000, lng: 107.605000 },
-  { nama: "Minimarket Maju Lancar", lat: -6.903000, lng: 107.618000 }
-];
-
+let DAFTAR_TOKO = [];
 let currentVisit = null;
 let selfieData = null;
 let mediaStream = null;
 let gpsData = null;
 let orders = [];
 
-// Muat pilihan toko ke dalam elemen <select> saat halaman dibuka
-window.onload = function() {
-  const selectToko = document.getElementById('ci_toko');
-  DAFTAR_TOKO.forEach(t => {
-    let opt = document.createElement('option');
-    opt.value = t.nama;
-    opt.textContent = t.nama;
-    selectToko.appendChild(opt);
-  });
+// Otomatis ambil daftar toko dari Google Sheets saat web dibuka
+window.onload = async function() {
   document.getElementById('ci_jam').value = nowStr();
   document.getElementById('headerSub').textContent = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  await loadDaftarToko();
 };
 
-function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
+async function loadDaftarToko() {
+  const selectToko = document.getElementById('ci_toko');
+  try {
+    const response = await fetch(API_URL);
+    const data = await response.json();
+    
+    if (data.result === 'success' && data.toko) {
+      DAFTAR_TOKO = data.toko;
+      selectToko.innerHTML = '<option value="">-- Pilih Toko / Tekan GPS --</option>';
+      DAFTAR_TOKO.forEach(t => {
+        let opt = document.createElement('option');
+        opt.value = t.nama;
+        opt.textContent = t.nama;
+        selectToko.appendChild(opt);
+      });
+      toast('? ' + DAFTAR_TOKO.length + ' toko dimuat dari Sheets');
+    } else {
+      selectToko.innerHTML = '<option value="">? Gagal memuat toko</option>';
+      toast('? ' + (data.message || 'Error muat toko'));
+    }
+  } catch (e) {
+    selectToko.innerHTML = '<option value="">? Gagal terhubung ke server</option>';
+    toast('? Koneksi gagal: ' + e.message);
+  }
+}
+
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
 function nowStr(){ return new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function rupiah(n){ return 'Rp '+(n||0).toLocaleString('id-ID'); }
 
-// Fungsi Hitung Jarak (Haversine Formula) dalam meter
 function hitungJarakMeter(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // radius bumi dalam meter
+  const R = 6371e3;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -162,7 +170,11 @@ function getGPS(){
       gpsData = userLat.toFixed(6) + ',' + userLng.toFixed(6);
       document.getElementById('ci_lokasi').value = gpsData;
 
-      // Cari toko terdekat dalam radius misal 100 meter
+      if (DAFTAR_TOKO.length === 0) {
+        toast('?? Daftar toko belum dimuat');
+        return;
+      }
+
       let tokoTerdekat = "";
       let jarakTerpendek = 999999;
 
@@ -174,12 +186,12 @@ function getGPS(){
         }
       });
 
-      // Jika jarak kurang dari 100 meter, otomatis pilih nama tokonya
-      if(jarakTerpendek <= 100){
+      // Toleransi radius 150 meter dari titik toko
+      if(jarakTerpendek <= 150){
         document.getElementById('ci_toko').value = tokoTerdekat;
         toast('? Toko terdeteksi: ' + tokoTerdekat + ' (' + Math.round(jarakTerpendek) + 'm)');
       } else {
-        toast('?? Anda berada di luar radius toko terdekat (~' + Math.round(jarakTerpendek) + 'm)');
+        toast('?? Di luar radius toko terdekat (~' + Math.round(jarakTerpendek) + 'm dari ' + tokoTerdekat + ')');
       }
     },
     (err)=>{ document.getElementById('ci_lokasi').value='Gagal ambil GPS'; toast('? GPS Error: '+err.message); },
@@ -204,7 +216,6 @@ function capturePhoto(){
   const ctx=c.getContext('2d');
   ctx.drawImage(v,0,0);
   
-  // Cetak watermark teks info toko, jam, dan GPS di bawah foto
   ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(0,c.height-70,c.width,70);
   ctx.fillStyle='#fff'; ctx.font='bold 18px sans-serif';
   const selectedToko = document.getElementById('ci_toko').value || 'Toko Lainnya';
