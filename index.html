@@ -60,7 +60,7 @@
 
   <div class="card" id="checkinCard">
     <h2>?? Check-in Kunjungan Toko</h2>
-    <label>?? Nama Toko (Pilih Manual / Deteksi GPS)</label>
+    <label>?? Pilih Nama Toko</label>
     <select id="ci_toko" style="width:100%; padding:12px; border:1.5px solid #ddd; border-radius:10px; font-size:15px; background:#fafafa; margin-bottom:10px;">
       <option value="">? Memuat daftar toko...</option>
     </select>
@@ -69,8 +69,8 @@
     <input type="text" id="ci_lokasi" placeholder="Tekan tombol GPS di bawah" readonly>
     
     <div class="btn-row" style="margin-top:6px;">
-      <button class="btn-gray btn-sm" onclick="getGPS()">?? Ambil GPS Otomatis</button>
-      <button class="btn-orange btn-sm" onclick="pakaiTokoManual()">?? Pilih Toko Manual</button>
+      <button class="btn-gray btn-sm" onclick="getGPS()">?? Ambil GPS & Deteksi</button>
+      <button class="btn-orange btn-sm" onclick="pakaiTokoManual()">?? Ambil GPS Manual</button>
     </div>
 
     <label>?? Foto Selfie di Toko (wajib)</label>
@@ -106,6 +106,7 @@
 
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbyrjRl0XD30oO11QAvSOkKjnNtZ7iPC7L6_aUCikJDOda7fXbe_J6fvFppP-gmhE-jh/exec';
+
 let DAFTAR_TOKO = [];
 let currentVisit = null;
 let selfieData = null;
@@ -134,21 +135,35 @@ async function loadDaftarToko() {
         opt.textContent = t.nama;
         selectToko.appendChild(opt);
       });
-      toast('? ' + DAFTAR_TOKO.length + ' toko dimuat dari Sheets');
+      toast('? ' + DAFTAR_TOKO.length + ' toko dimuat');
     } else {
-      selectToko.innerHTML = '<option value="">? Gagal memuat toko</option>';
-      toast('? ' + (data.message || 'Error muat toko'));
+      selectToko.innerHTML = '<option value="">(Gagal memuat toko)</option>';
+      toast('? Gagal muat data toko');
     }
   } catch (e) {
-    selectToko.innerHTML = '<option value="">? Gagal terhubung ke server</option>';
-    toast('? Koneksi gagal: ' + e.message);
+    selectToko.innerHTML = '<option value="">(Error koneksi server)</option>';
+    toast('? Error: ' + e.message);
   }
 }
 
-function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
-function nowStr(){ return new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
-function todayStr(){ return new Date().toISOString().slice(0,10); }
-function rupiah(n){ return 'Rp '+(n||0).toLocaleString('id-ID'); }
+function toast(msg){ 
+  const t = document.getElementById('toast'); 
+  t.textContent = msg; 
+  t.classList.add('show'); 
+  setTimeout(() => t.classList.remove('show'), 3000); 
+}
+
+function nowStr(){ 
+  return new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); 
+}
+
+function todayStr(){ 
+  return new Date().toISOString().slice(0,10); 
+}
+
+function rupiah(n){ 
+  return 'Rp ' + (n||0).toLocaleString('id-ID'); 
+}
 
 function hitungJarakMeter(lat1, lon1, lat2, lon2) {
   const R = 6371e3;
@@ -173,7 +188,7 @@ function getGPS(){
       document.getElementById('ci_lokasi').value = gpsData;
 
       if (DAFTAR_TOKO.length === 0) {
-        toast('?? Daftar toko belum dimuat');
+        toast('?? Daftar toko kosong');
         return;
       }
 
@@ -188,12 +203,62 @@ function getGPS(){
         }
       });
 
-      // Toleransi radius diperbesar jadi 500 meter untuk antisipasi sinyal dalam ruangan
       if(jarakTerpendek <= 500){
         document.getElementById('ci_toko').value = tokoTerdekat;
-        toast('? Toko terdeteksi: ' + tokoTerdekat + ' (' + Math.round(jarakTerpendek) + 'm)');
+        toast('? Toko terdeteksi: ' + tokoTerdekat);
       } else {
-        toast('?? Di luar radius (~' + Math.round(jarakTerpendek) + 'm). Silakan pilih manual.');
+        toast('?? Di luar radius (~' + Math.round(jarakTerpendek) + 'm)');
       }
     },
-    (
+    (err)=>{ 
+      document.getElementById('ci_lokasi').value = 'Gagal ambil GPS'; 
+      toast('? GPS Error: ' + err.message); 
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function pakaiTokoManual(){
+  if(!navigator.geolocation){ toast('GPS tidak didukung'); return; }
+  document.getElementById('ci_lokasi').value = 'Mengambil koordinat...';
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      gpsData = pos.coords.latitude.toFixed(6) + ',' + pos.coords.longitude.toFixed(6);
+      document.getElementById('ci_lokasi').value = gpsData;
+      toast('? Koordinat diambil. Silakan pilih toko.');
+    },
+    ()=>{ 
+      document.getElementById('ci_lokasi').value = 'Gagal ambil GPS'; 
+      toast('? Gagal mengambil GPS'); 
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+async function openCamera(){
+  try{
+    mediaStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' } });
+    const v = document.getElementById('video');
+    v.srcObject = mediaStream; 
+    v.classList.remove('hidden');
+    document.getElementById('camControls').classList.remove('hidden');
+    document.getElementById('btnOpenCam').classList.add('hidden');
+    document.getElementById('selfiePreview').classList.add('hidden');
+  }catch(e){ 
+    toast('? Kamera error: ' + e.message); 
+  }
+}
+
+function capturePhoto(){
+  const v = document.getElementById('video');
+  const c = document.getElementById('canvas');
+  c.width = v.videoWidth || 640; 
+  c.height = v.videoHeight || 480;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(v, 0, 0, c.width, c.height);
+  
+  ctx.fillStyle = 'rgba(0,0,0,.55)'; 
+  ctx.fillRect(0, c.height - 70, c.width, 70);
+  ctx.fillStyle = '#fff'; 
+  ctx.font = 'bold 18px sans-serif';
+  const selectedToko = document.getElementById('ci_toko').value ||
