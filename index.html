@@ -218,7 +218,7 @@ function hideForms(){
 
 function addProductRow(){
   const div = document.createElement('div'); div.className = 'product-row';
-  div.innerHTML = '<input placeholder="Produk" class="p-nama"><input type="number" placeholder="Qty" class="p-qty" min="1" value="1" oninput="calcTotal()"><select class="p-satuan"><option value="Karung / Jaring">Karung / Jaring</option><option value="Ball / Dus">Ball / Dus</option><option value="Pak / Kg">Pak / Kg</option></select><input type="number" placeholder="Harga" class="p-harga" min="0" value="0" oninput="calcTotal()"><button class="btn-red btn-sm" onclick="this.parentElement.remove();calcTotal()">✖</button>';
+  div.innerHTML = '<input placeholder="Produk" class="p-nama"><input type="number" placeholder="Qty" class="p-qty" min="1" value="1" oninput="calcTotal()"><select class="p-satuan"><option value="Krg">Krg</option><option value="Jrg">Jrg</option><option value="Bal">Bal</option><option value="Dus">Dus</option><option value="Kg">Kg</option></select><input type="number" placeholder="Harga" class="p-harga" min="0" value="0" oninput="calcTotal()"><button class="btn-red btn-sm" onclick="this.parentElement.remove();calcTotal()">✖</button>';
   document.getElementById('productList').appendChild(div);
 }
 
