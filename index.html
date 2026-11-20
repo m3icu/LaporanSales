@@ -94,7 +94,7 @@
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbyWT-8D3uy_0mFOAz02GpKvdNn5JYTo8SsQLjjK0VnpK-BDJ_k2026ug78IsWZXlY0Y/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyAqlZib1cKdpt8LYiUTBSBnWoaruW3Tm4Fbi1modftjhEoIKZfyibrK5pt3NMX2PEZ/exec';
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
 
 window.onload = async function() {
@@ -200,6 +200,8 @@ function closeCamera(){
   document.getElementById('camControls').classList.add('hidden');
   document.getElementById('btnOpenCam').classList.remove('hidden');
 }
+const NOMOR_WA_ADMIN = '6289657160578'; // <-- GANTI DENGAN NOMOR WA ADMIN (AWALAN 62)
+
 function checkIn(){
   const toko = document.getElementById('ci_toko').value;
   if(!toko){ toast('⚠️ Pilih nama toko terlebih dahulu'); return; }
@@ -238,7 +240,7 @@ function hideForms(){
 
 function addProductRow(){
   const div = document.createElement('div'); div.className = 'product-row';
-  div.innerHTML = `<input placeholder="Nama Produk" class="p-nama"><input type="number" placeholder="Qty" class="p-qty" min="1" value="1" oninput="calcTotal()"><select class="p-satuan"><option value="Krg">Krg</option><option value="Jrg">Jrg</option><option value="Bal">Bal</option><option value="Dus">Dus</option><option value="Kg">Kg</option></select><input type="number" placeholder="Harga" class="p-harga" min="0" value="0" oninput="calcTotal()"><button class="btn-red btn-sm" onclick="this.parentElement.remove();calcTotal()">✖</button>`;
+  div.innerHTML = `<input placeholder="Nama Produk" class="p-nama"><input type="number" placeholder="Qty" class="p-qty" min="1" value="1" oninput="calcTotal()"><select class="p-satuan"><option value="Karung / Jaring">Karung / Jaring</option><option value="Ball / Dus">Ball / Dus</option><option value="Pak / Kg">Pak / Kg</option></select><input type="number" placeholder="Harga" class="p-harga" min="0" value="0" oninput="calcTotal()"><button class="btn-red btn-sm" onclick="this.parentElement.remove();calcTotal()">✖</button>`;
   document.getElementById('productList').appendChild(div);
 }
 
@@ -269,29 +271,55 @@ function saveOrder(){
 
 async function selesaiKunjungan(){
   if(!currentVisit) return;
-  if(!confirm('Kirim laporan kunjungan ini ke kantor?')) return;
+  if(!confirm('Kirim laporan kunjungan ini ke kantor & WhatsApp?')) return;
+  
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0);
+  const jamKeluar = nowStr();
   let teksPesanan = '-';
+  
   if (orders.length > 0) {
     teksPesanan = orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n');
   }
+
   const formData = new FormData();
   formData.append('tanggal', currentVisit.tanggal);
   formData.append('toko', currentVisit.toko);
   formData.append('jamMasuk', currentVisit.jamMasuk);
-  formData.append('jamKeluar', nowStr());
+  formData.append('jamKeluar', jamKeluar);
   formData.append('totalOrder', totalOrder.toString());
   formData.append('foto', currentVisit.selfie || '');
   formData.append('pesanan', teksPesanan);
-  toast('⏳ Mengirim ke kantor...');
+
+  toast('⏳ Menyimpan ke Drive & menyiapkan WA...');
   try {
     const response = await fetch(API_URL, { method: 'POST', body: formData });
     const result = await response.json();
+    
     if(result.result === 'success'){
-      toast('✅ Laporan & file orderan terkirim!');
+      toast('✅ Tersimpan! Membuka WhatsApp...');
+      
+      // Susun format pesan WhatsApp untuk Admin
+      let pesanWA = `*LAPORAN KUNJUNGAN & ORDER SALES*\n` +
+                    `Tanggal : ${currentVisit.tanggal}\n` +
+                    `Toko : *${currentVisit.toko}*\n` +
+                    `Jam : ${currentVisit.jamMasuk} - ${jamKeluar}\n` +
+                    `--------------------------\n` +
+                    `*RINCIAN ORDERAN:*\n${teksPesanan}\n` +
+                    `--------------------------\n` +
+                    `*Total Order : ${rupiah(totalOrder)}*`;
+
+      if (result.fileUrl && result.fileUrl !== '-') {
+        pesanWA += `\n\n📄 File Order (.txt) :\n${result.fileUrl}`;
+      }
+
+      const waUrl = `https://wa.me{NOMOR_WA_ADMIN}?text=${encodeURIComponent(pesanWA)}`;
+      
       currentVisit = null; orders = [];
       document.getElementById('activeVisitCard').classList.add('hidden');
       document.getElementById('checkinCard').classList.remove('hidden');
+
+      // Langsung buka aplikasi WhatsApp di HP sales
+      window.location.href = waUrl;
     } else {
       toast('❌ Gagal: ' + (result.message || 'Error'));
     }
@@ -300,3 +328,4 @@ async function selesaiKunjungan(){
 </script>
 </body>
 </html>
+
