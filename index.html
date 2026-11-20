@@ -255,7 +255,7 @@ async function selesaiKunjungan(){
     if(result.result === 'success'){
       let pesanWA = '*LAPORAN KUNJUNGAN & ORDER SALES*\nTanggal : ' + currentVisit.tanggal + '\nToko : *' + currentVisit.toko + '*\nJam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n--------------------------\n*RINCIAN ORDERAN:*\n' + teksPesanan + '\n--------------------------\n*Total Order : ' + rupiah(totalOrder) + '*';
       if (result.fileUrl && result.fileUrl !== '-') pesanWA += '\n\n📄 File Order (.txt) :\n' + result.fileUrl;
-      const linkWA = 'https://whatsapp.com' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
+      const linkWA = 'https://wa.me/' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
       currentVisit = null; orders = [];
       document.getElementById('activeVisitCard').classList.add('hidden');
       document.getElementById('checkinCard').classList.remove('hidden');
