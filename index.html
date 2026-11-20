@@ -312,7 +312,7 @@ async function selesaiKunjungan(){
         pesanWA += `\n\n📄 File Order (.txt) :\n${result.fileUrl}`;
       }
 
-      const waUrl = `https://wa.me{NOMOR_WA_ADMIN}?text=${encodeURIComponent(pesanWA)}`;
+      const waUrl = 'https://wa.me' + NOMOR_WA_ADMIN + '?text=' + encodeURIComponent(pesanWA);
       
       currentVisit = null; orders = [];
       document.getElementById('activeVisitCard').classList.add('hidden');
