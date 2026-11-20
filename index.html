@@ -1,0 +1,121 @@
+// Fungsi untuk MENGAMBIL daftar toko dari sheet "DaftarToko" ke aplikasi HTML
+function doGet(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetToko = ss.getSheetByName('DaftarToko');
+    
+    if (!sheetToko) {
+      return ContentService.createTextOutput(JSON.stringify({
+        'result': 'error',
+        'message': 'Sheet DaftarToko tidak ditemukan'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    var data = sheetToko.getDataRange().getValues();
+    var daftarToko = [];
+    
+    for (var i = 1; i < data.length; i++) {
+      var nama = data[i][0];
+      var lat  = Number(data[i][1]);
+      var lng  = Number(data[i][2]);
+      
+      if (nama && !isNaN(lat) && !isNaN(lng)) {
+        daftarToko.push({
+          nama: nama.toString().trim(),
+          lat: lat,
+          lng: lng
+        });
+      }
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      'result': 'success',
+      'toko': daftarToko
+    })).setMimeType(ContentService.MimeType.JSON);
+    
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      'result': 'error',
+      'message': error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// Fungsi untuk MENYIMPAN laporan, foto, & pesanan ke sheet "kunjungan"
+function doPost(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    // 1. Diubah agar langsung mengarah ke sheet bernama "kunjungan"
+    var sheet = ss.getSheetByName('kunjungan');
+    
+    if (!sheet) {
+      return ContentService.createTextOutput(JSON.stringify({
+        'result': 'error',
+        'message': 'Sheet kunjungan tidak ditemukan'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    var tanggal     = e.parameter.tanggal || '';
+    var toko        = e.parameter.toko || '';
+    var jamMasuk    = e.parameter.jamMasuk || '';
+    var jamKeluar   = e.parameter.jamKeluar || '';
+    var totalOrder  = e.parameter.totalOrder || '0';
+    var fotoBase64  = e.parameter.foto || '';
+    
+    // 2. Mengambil data pesanan sebagai teks (1 kolom)
+    // Pastikan di kode HTML/aplikasi Anda nama parameter yang dikirim adalah 'pesanan'
+    var rawPesanan  = e.parameter.pesanan || '-';
+    var teksPesanan = rawPesanan;
+    
+    // Jaga-jaga jika aplikasi mengirim pesanan dalam format JSON string (array)
+    try {
+      var parsed = JSON.parse(rawPesanan);
+      if (Array.isArray(parsed)) {
+        teksPesanan = parsed.map(function(item) {
+          return "- " + (item.nama || item.produk) + " (" + (item.qty || item.jumlah) + ")";
+        }).join("\n");
+      }
+    } catch (err) {
+      // Jika sudah berbentuk teks biasa, biarkan apa adanya
+      teksPesanan = rawPesanan.toString();
+    }
+    
+    var fotoUrl = '-';
+    
+    if (fotoBase64 && fotoBase64.indexOf('data:image') === 0) {
+      var folders = DriveApp.getFoldersByName('Foto Laporan Sales');
+      var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder('Foto Laporan Sales');
+      
+      var parts = fotoBase64.split(';base64,');
+      var contentType = parts[0].split(':')[1];
+      var decodedData = Utilities.base64Decode(parts[1]);
+      var blob = Utilities.newBlob(decodedData, contentType, 'selfie_' + toko.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Date.now() + '.jpg');
+      
+      var file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      fotoUrl = file.getUrl();
+    }
+    
+    // 3. Masukkan data sesuai urutan Kolom A sampai G di sheet "kunjungan"
+    sheet.appendRow([
+      tanggal,      // Kolom A: Tanggal
+      toko,         // Kolom B: Nama Toko
+      jamMasuk,     // Kolom C: Jam Masuk
+      jamKeluar,    // Kolom D: Jam Keluar
+      totalOrder,   // Kolom E: Total Order
+      fotoUrl,      // Kolom F: Foto Selfie (Link GoogleDrive)
+      teksPesanan   // Kolom G: pesanan (dalam bentuk teks)
+    ]);
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      'result': 'success',
+      'message': 'Data berhasil disimpan ke sheet kunjungan'
+    })).setMimeType(ContentService.MimeType.JSON);
+    
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      'result': 'error',
+      'message': error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
