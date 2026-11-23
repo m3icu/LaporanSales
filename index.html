@@ -86,7 +86,7 @@
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbyy7BxH6lJ-AB_XbYoqcj7ugfIALeLvXsV7dsXbslmbQZM3fGx01gTytQO5BXvHyuV2/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyqNM8kCz2m1NgVclQURtY7erp1soxUD2QL2-ZPqKEXnG3sDryN4cnISBVezwzIUQpD/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -94,11 +94,11 @@ let latData = '', lngData = '', alamatData = '-';
 
 async function terjemahkanAlamat(lat, lng) {
   try {
-    const res = await fetch(`https://bigdatacloud.net{lat}&longitude=${lng}&localityLanguage=id`);
-    const geo = await res.json();
-    const bagian = [geo.locality, geo.city, geo.principalSubdivision].filter(Boolean);
-    if (bagian.length > 0) {
-      alamatData = bagian.join(', ');
+    const res = await fetch(`${API_URL}?action=geocode&lat=${lat}&lng=${lng}`);
+    const data = await res.json();
+    if (data && data.alamat) {
+      // Hapus kata ", Indonesia" di paling belakang agar lebih ringkas di foto
+      alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
     } else {
       alamatData = `Koordinat: ${lat}, ${lng}`;
     }
