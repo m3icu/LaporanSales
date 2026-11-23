@@ -90,6 +90,21 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbyy7BxH6lJ-AB_XbYoqcj7u
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
+let latData = '', lngData = '', alamatData = '-';
+
+async function terjemahkanAlamat(lat, lng) {
+  try {
+    const res = await fetch(`https://openstreetmap.org{lat}&lon=${lng}`);
+    const geo = await res.json();
+    if (geo && geo.display_name) {
+      alamatData = geo.display_name.split(',').slice(0, 4).join(',').trim();
+    } else {
+      alamatData = `Koordinat: ${lat}, ${lng}`;
+    }
+  } catch (e) {
+    alamatData = `Koordinat: ${lat}, ${lng}`;
+  }
+}
 
 window.onload = async function() {
   document.getElementById('ci_jam').value = nowStr();
@@ -130,11 +145,15 @@ function hitungJarakMeter(lat1, lon1, lat2, lon2) {
 
 function getGPS(){
   if(!navigator.geolocation){ toast('GPS tidak didukung'); return; }
-  document.getElementById('ci_lokasi').value = 'Mendeteksi posisi...';
-  navigator.geolocation.getCurrentPosition((pos)=>{
+  document.getElementById('ci_lokasi').value = 'Mendeteksi posisi & alamat...';
+  navigator.geolocation.getCurrentPosition(async (pos)=>{
     const userLat = pos.coords.latitude, userLng = pos.coords.longitude;
-    gpsData = userLat.toFixed(6) + ',' + userLng.toFixed(6);
+    latData = userLat.toFixed(6);
+    lngData = userLng.toFixed(6);
+    gpsData = latData + ',' + lngData;
     document.getElementById('ci_lokasi').value = gpsData;
+    await terjemahkanAlamat(latData, lngData);
+
     let tokoTerdekat = "", jarakTerpendek = 999999;
     DAFTAR_TOKO.forEach(toko => {
       let jarak = hitungJarakMeter(userLat, userLng, toko.lat, toko.lng);
@@ -147,11 +166,14 @@ function getGPS(){
 
 function pakaiTokoManual(){
   if(!navigator.geolocation) return;
-  document.getElementById('ci_lokasi').value = 'Mengambil koordinat...';
-  navigator.geolocation.getCurrentPosition((pos)=>{
-    gpsData = pos.coords.latitude.toFixed(6) + ',' + pos.coords.longitude.toFixed(6);
+  document.getElementById('ci_lokasi').value = 'Mengambil koordinat & alamat...';
+  navigator.geolocation.getCurrentPosition(async (pos)=>{
+    latData = pos.coords.latitude.toFixed(6);
+    lngData = pos.coords.longitude.toFixed(6);
+    gpsData = latData + ',' + lngData;
     document.getElementById('ci_lokasi').value = gpsData;
-    toast('✅ Koordinat diambil');
+    await terjemahkanAlamat(latData, lngData);
+    toast('✅ Koordinat & alamat diambil');
   }, ()=>{ document.getElementById('ci_lokasi').value = 'Gagal ambil GPS'; }, { enableHighAccuracy: true, timeout: 10000 });
 }
 
@@ -166,19 +188,76 @@ async function openCamera(){
   }catch(e){ toast('❌ Kamera error: ' + e.message); }
 }
 
-function capturePhoto(){
+async function capturePhoto(){
+  // Jika sales lupa klik tombol GPS sebelum foto, otomatis ambil GPS dulu
+  if (!latData || !lngData) {
+    toast('⏳ Mengunci lokasi GPS...');
+    await new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        latData = pos.coords.latitude.toFixed(6);
+        lngData = pos.coords.longitude.toFixed(6);
+        gpsData = latData + ',' + lngData;
+        document.getElementById('ci_lokasi').value = gpsData;
+        await terjemahkanAlamat(latData, lngData);
+        resolve();
+      }, () => resolve(), { enableHighAccuracy: true, timeout: 8000 });
+    });
+  }
+
   const v = document.getElementById('video'), c = document.getElementById('canvas');
-  c.width = v.videoWidth || 640; c.height = v.videoHeight || 480;
+  c.width = v.videoWidth || 720; 
+  c.height = v.videoHeight || 960;
   const ctx = c.getContext('2d');
   ctx.drawImage(v, 0, 0, c.width, c.height);
-  ctx.fillStyle = 'rgba(0,0,0,.555)'; ctx.fillRect(0, c.height - 70, c.width, 70);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 18px sans-serif';
-  ctx.fillText('📍 ' + (document.getElementById('ci_toko').value || 'Toko Lainnya'), 12, c.height - 42);
+
+  // Latar belakang gelap transparan di bagian bawah foto
+  const boxHeight = 155;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+  ctx.fillRect(0, c.height - boxHeight, c.width, boxHeight);
+
+  // Garis aksen kuning vertikal di sebelah kiri teks
+  ctx.fillStyle = '#FFC107';
+  ctx.fillRect(14, c.height - boxHeight + 14, 5, boxHeight - 28);
+
+  const namaToko = document.getElementById('ci_toko').value || 'Toko Kunjungan';
+  const tglLengkap = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+  const startX = 28;
+  let y = c.height - boxHeight + 32;
+
+  // Baris 1: Nama Toko
+  ctx.fillStyle = '#FFC107';
+  ctx.font = 'bold 19px sans-serif';
+  ctx.fillText('📍 ' + namaToko.toUpperCase(), startX, y);
+
+  // Baris 2: Hari, Tanggal & Jam
+  y += 24;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText(tglLengkap + '  •  ' + nowStr() + ' WIB', startX, y);
+
+  // Baris 3 & 4: Alamat Jalan (otomatis dibagi 2 baris jika panjang)
+  y += 22;
   ctx.font = '14px sans-serif';
-  ctx.fillText('🕐 ' + nowStr() + '  •  ' + (gpsData || '-'), 12, c.height - 18);
-  selfieData = c.toDataURL('image/jpeg', 0.7);
-  const p = document.getElementById('selfiePreview'); p.src = selfieData; p.classList.remove('hidden');
-  closeCamera(); toast('📸 Foto diambil');
+  const barisAlamat1 = alamatData.length > 48 ? alamatData.slice(0, 48) : alamatData;
+  const barisAlamat2 = alamatData.length > 48 ? alamatData.slice(48, 96) : '';
+  ctx.fillText(barisAlamat1, startX, y);
+  if (barisAlamat2) {
+    y += 19;
+    ctx.fillText(barisAlamat2, startX, y);
+  }
+
+  // Baris 5: Titik Koordinat GPS
+  y += 22;
+  ctx.fillStyle = '#A5D6A7';
+  ctx.font = 'bold 14px monospace';
+  ctx.fillText('GPS: ' + (gpsData || '-'), startX, y);
+
+  selfieData = c.toDataURL('image/jpeg', 0.78);
+  const p = document.getElementById('selfiePreview'); 
+  p.src = selfieData; 
+  p.classList.remove('hidden');
+  closeCamera(); 
+  toast('📸 Foto & stempel GPS tersimpan');
 }
 
 function closeCamera(){
@@ -187,12 +266,22 @@ function closeCamera(){
   document.getElementById('camControls').classList.add('hidden');
   document.getElementById('btnOpenCam').classList.remove('hidden');
 }
+
 function checkIn(){
   const toko = document.getElementById('ci_toko').value;
   if(!toko){ toast('⚠️ Pilih nama toko'); return; }
   if(!selfieData){ toast('⚠️ Foto selfie wajib'); return; }
-  currentVisit = { tanggal: todayStr(), toko: toko, lokasi: document.getElementById('ci_lokasi').value || '-', jamMasuk: nowStr(), selfie: selfieData };
-  orders = []; selfieData = null;
+  currentVisit = { 
+    tanggal: todayStr(), 
+    toko: toko, 
+    lokasi: document.getElementById('ci_lokasi').value || '-', 
+    lat: latData,
+    lng: lngData,
+    alamat: alamatData,
+    jamMasuk: nowStr(), 
+    selfie: selfieData 
+  };
+  orders = []; selfieData = null; latData = ''; lngData = ''; alamatData = '-';
   document.getElementById('checkinCard').classList.add('hidden');
   document.getElementById('activeVisitCard').classList.remove('hidden');
   document.getElementById('av_toko').textContent = currentVisit.toko;
@@ -202,6 +291,7 @@ function checkIn(){
   document.getElementById('selfiePreview').classList.add('hidden');
   toast('✅ Check-in berhasil');
 }
+
 
 function showOrderForm(){
   document.getElementById('orderCard').classList.remove('hidden');
@@ -245,17 +335,40 @@ async function selesaiKunjungan(){
   if(!currentVisit || !confirm('Kirim laporan ke kantor & WA?')) return;
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
+  
+  const linkMaps = (currentVisit.lat && currentVisit.lng) ? 'https://google.com' + currentVisit.lat + ',' + currentVisit.lng : '-';
+
   const fd = new FormData();
-  fd.append('tanggal', currentVisit.tanggal); fd.append('toko', currentVisit.toko); fd.append('jamMasuk', currentVisit.jamMasuk);
-  fd.append('jamKeluar', jamKeluar); fd.append('totalOrder', totalOrder.toString()); fd.append('foto', currentVisit.selfie || ''); fd.append('pesanan', teksPesanan);
+  fd.append('tanggal', currentVisit.tanggal); 
+  fd.append('toko', currentVisit.toko); 
+  fd.append('jamMasuk', currentVisit.jamMasuk);
+  fd.append('jamKeluar', jamKeluar); 
+  fd.append('totalOrder', totalOrder.toString()); 
+  fd.append('foto', currentVisit.selfie || ''); 
+  fd.append('pesanan', teksPesanan);
+  fd.append('lat', currentVisit.lat || '');
+  fd.append('lng', currentVisit.lng || '');
+  fd.append('alamat', currentVisit.alamat || '-');
+
   toast('⏳ Mengirim...');
   try {
     const res = await fetch(API_URL, { method: 'POST', body: fd });
     const result = await res.json();
     if(result.result === 'success'){
-      let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\nTanggal : ' + currentVisit.tanggal + '\nToko : *' + currentVisit.toko + '*\nJam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n--------------------------\n*ORDERAN:*\n' + teksPesanan + '\n--------------------------\n*Total : ' + rupiah(totalOrder) + '*';
+      let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
+                    'Tanggal : ' + currentVisit.tanggal + '\n' +
+                    'Toko : *' + currentVisit.toko + '*\n' +
+                    'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
+                    '📍 Alamat : ' + currentVisit.alamat + '\n' +
+                    '🗺️ Link GPS : ' + linkMaps + '\n' +
+                    '--------------------------\n' +
+                    '*ORDERAN:*\n' + teksPesanan + '\n' +
+                    '--------------------------\n' +
+                    '*Total : ' + rupiah(totalOrder) + '*';
+
       if (result.fotoUrl && result.fotoUrl !== '-') pesanWA += '\n\n📸 Foto Selfie :\n' + result.fotoUrl;
       if (result.fileUrl && result.fileUrl !== '-') pesanWA += '\n\n📄 File Order (.txt) :\n' + result.fileUrl;
+      
       const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
       currentVisit = null; orders = [];
       document.getElementById('activeVisitCard').classList.add('hidden');
