@@ -94,10 +94,11 @@ let latData = '', lngData = '', alamatData = '-';
 
 async function terjemahkanAlamat(lat, lng) {
   try {
-    const res = await fetch(`https://openstreetmap.org{lat}&lon=${lng}`);
+    const res = await fetch(`https://bigdatacloud.net{lat}&longitude=${lng}&localityLanguage=id`);
     const geo = await res.json();
-    if (geo && geo.display_name) {
-      alamatData = geo.display_name.split(',').slice(0, 4).join(',').trim();
+    const bagian = [geo.locality, geo.city, geo.principalSubdivision].filter(Boolean);
+    if (bagian.length > 0) {
+      alamatData = bagian.join(', ');
     } else {
       alamatData = `Koordinat: ${lat}, ${lng}`;
     }
@@ -105,6 +106,7 @@ async function terjemahkanAlamat(lat, lng) {
     alamatData = `Koordinat: ${lat}, ${lng}`;
   }
 }
+
 
 window.onload = async function() {
   document.getElementById('ci_jam').value = nowStr();
@@ -189,19 +191,22 @@ async function openCamera(){
 }
 
 async function capturePhoto(){
-  // Jika sales lupa klik tombol GPS sebelum foto, otomatis ambil GPS dulu
+  toast('⏳ Mengunci GPS & alamat...');
   if (!latData || !lngData) {
-    toast('⏳ Mengunci lokasi GPS...');
     await new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        latData = pos.coords.latitude.toFixed(6);
-        lngData = pos.coords.longitude.toFixed(6);
+      navigator.geolocation.getCurrentPosition((pos) => {
+        latData = pos.coords.latitude.toFixed(6).trim();
+        lngData = pos.coords.longitude.toFixed(6).trim();
         gpsData = latData + ',' + lngData;
         document.getElementById('ci_lokasi').value = gpsData;
-        await terjemahkanAlamat(latData, lngData);
         resolve();
       }, () => resolve(), { enableHighAccuracy: true, timeout: 8000 });
     });
+  }
+
+  // Pastikan alamat sudah diterjemahkan sebelum foto digambar
+  if (latData && lngData && (!alamatData || alamatData === '-' || alamatData.startsWith('Koordinat:'))) {
+    await terjemahkanAlamat(latData, lngData);
   }
 
   const v = document.getElementById('video'), c = document.getElementById('canvas');
@@ -210,44 +215,45 @@ async function capturePhoto(){
   const ctx = c.getContext('2d');
   ctx.drawImage(v, 0, 0, c.width, c.height);
 
-  // Latar belakang gelap transparan di bagian bawah foto
-  const boxHeight = 155;
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+  // Kotak latar gelap di bagian bawah foto
+  const boxHeight = 160;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.68)';
   ctx.fillRect(0, c.height - boxHeight, c.width, boxHeight);
 
-  // Garis aksen kuning vertikal di sebelah kiri teks
+  // Garis kuning di kiri kotak
   ctx.fillStyle = '#FFC107';
   ctx.fillRect(14, c.height - boxHeight + 14, 5, boxHeight - 28);
 
   const namaToko = document.getElementById('ci_toko').value || 'Toko Kunjungan';
   const tglLengkap = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
   const startX = 28;
-  let y = c.height - boxHeight + 32;
+  let y = c.height - boxHeight + 34;
 
-  // Baris 1: Nama Toko
+  // 1. Nama Toko
   ctx.fillStyle = '#FFC107';
-  ctx.font = 'bold 19px sans-serif';
+  ctx.font = 'bold 20px sans-serif';
   ctx.fillText('📍 ' + namaToko.toUpperCase(), startX, y);
 
-  // Baris 2: Hari, Tanggal & Jam
-  y += 24;
+  // 2. Hari, Tanggal & Jam
+  y += 26;
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = 'bold 16px sans-serif';
   ctx.fillText(tglLengkap + '  •  ' + nowStr() + ' WIB', startX, y);
 
-  // Baris 3 & 4: Alamat Jalan (otomatis dibagi 2 baris jika panjang)
-  y += 22;
-  ctx.font = '14px sans-serif';
-  const barisAlamat1 = alamatData.length > 48 ? alamatData.slice(0, 48) : alamatData;
-  const barisAlamat2 = alamatData.length > 48 ? alamatData.slice(48, 96) : '';
-  ctx.fillText(barisAlamat1, startX, y);
-  if (barisAlamat2) {
-    y += 19;
-    ctx.fillText(barisAlamat2, startX, y);
+  // 3. Alamat Wilayah (Kecamatan, Kota, Provinsi)
+  y += 24;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '15px sans-serif';
+  const baris1 = alamatData.length > 46 ? alamatData.slice(0, 46) : alamatData;
+  const baris2 = alamatData.length > 46 ? alamatData.slice(46, 92) : '';
+  ctx.fillText(baris1, startX, y);
+  if (baris2) {
+    y += 20;
+    ctx.fillText(baris2, startX, y);
   }
 
-  // Baris 5: Titik Koordinat GPS
-  y += 22;
+  // 4. Titik Koordinat GPS
+  y += 24;
   ctx.fillStyle = '#A5D6A7';
   ctx.font = 'bold 14px monospace';
   ctx.fillText('GPS: ' + (gpsData || '-'), startX, y);
@@ -257,7 +263,7 @@ async function capturePhoto(){
   p.src = selfieData; 
   p.classList.remove('hidden');
   closeCamera(); 
-  toast('📸 Foto & stempel GPS tersimpan');
+  toast('📸 Foto & alamat tersimpan');
 }
 
 function closeCamera(){
@@ -336,7 +342,9 @@ async function selesaiKunjungan(){
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
   
-  const linkMaps = (currentVisit.lat && currentVisit.lng) ? 'https://google.com' + currentVisit.lat + ',' + currentVisit.lng : '-';
+  const linkMaps = (currentVisit.lat && currentVisit.lng) 
+  ? 'https://google.com' + currentVisit.lat.trim() + '%2C' + currentVisit.lng.trim() 
+  : '-';
 
   const fd = new FormData();
   fd.append('tanggal', currentVisit.tanggal); 
