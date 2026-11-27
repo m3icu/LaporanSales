@@ -239,39 +239,50 @@ async function capturePhoto(){
   const ctx = c.getContext('2d');
   ctx.drawImage(v, 0, 0, c.width, c.height);
 
-  const boxHeight = 170;
-  ctx.fillStyle = 'rgba(0,0,0,0.68)';
+  // Kotak hitam diperbesar sedikit (dari 170 ke 195) agar muat teks alamat
+  const boxHeight = 195;
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
   ctx.fillRect(0, c.height - boxHeight, c.width, boxHeight);
+  
+  // Garis kuning di kiri
   ctx.fillStyle = '#FFC107';
   ctx.fillRect(14, c.height - boxHeight + 14, 5, boxHeight - 28);
 
   const namaToko = document.getElementById('ci_toko').value || '-';
   const tgl = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-  const startX = 28;
-  let y = c.height - boxHeight + 32;
+  const startX = 30;
+  let y = c.height - boxHeight + 35; // Titik awal teks
 
+  // 1. Nama Toko
   ctx.fillStyle = '#FFC107';
-  ctx.font = 'bold 19px sans-serif';
+  ctx.font = 'bold 18px sans-serif';
   ctx.fillText('📍 ' + namaToko.toUpperCase(), startX, y);
 
-  y += 26;
+  // 2. Tanggal & Jam
+  y += 25;
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = 'bold 14px sans-serif';
   ctx.fillText(tgl + ' • ' + nowStr() + ' WIB', startX, y);
 
-  y += 24;
+  // 3. Alamat (Wrap 2 Baris)
+  y += 22;
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = '14px sans-serif';
+  ctx.font = '13px sans-serif';
   const alamat = alamatData || '-';
-  const maxChar = 44;
+  const maxChar = 46;
   const b1 = alamat.slice(0, maxChar);
   const b2 = alamat.slice(maxChar, maxChar * 2);
   ctx.fillText(b1, startX, y);
-  if (b2) { y += 20; ctx.fillText(b2, startX, y); }
+  
+  if (b2) { 
+    y += 18; 
+    ctx.fillText(b2, startX, y); 
+  }
 
-  y += 24;
-  ctx.fillStyle = '#A5D6A7';
-  ctx.font = 'bold 13px monospace';
+  // 4. GPS
+  y += 22;
+  ctx.fillStyle = '#A5D6A7'; // Warna hijau muda
+  ctx.font = 'bold 12px monospace';
   ctx.fillText('GPS: ' + gpsData, startX, y);
 
   selfieData = c.toDataURL('image/jpeg', 0.78);
