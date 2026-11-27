@@ -70,9 +70,9 @@
         <button class="btn-red" onclick="closeCamera()">✖ Batal</button>
       </div>
     </div>
-    <label>🕐 Jam Masuk</label>
+    <label>🕐 Jam Masuk 🕐</label>
     <input type="text" id="ci_jam" readonly>
-    <button class="btn-primary" style="padding:20px;font-size:17px;" onclick="checkIn()">✅ SIMPAN CHECK-IN ✅</button>
+    <button class="btn-primary" style="padding:20px;font-size:17px;" onclick="checkIn()">✅ SIMPAN CHECK-IN </button>
   </div>
   <div class="card hidden" id="orderCard">
     <h2>🛒 Input Orderan</h2>
@@ -87,7 +87,7 @@
 <div class="toast" id="toast"></div>
 <script>
 // PASTIKAN URL INI ADALAH URL DEPLOYMENT ANDA YANG BERAKHIRAN /exec
-const API_URL = 'https://script.google.com/macros/s/AKfycbxu4n4SMkbexEjWGnWQ44-yS105QR_-8LOw-QcZB49qA74y_XETYWCSx6yOtewmLYMF/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbw-oCuH4A4IMAHzinujb5Gh3XOkXVP6x5QWoM-o0Q2b3RQ4LYQkokTu1ulYx31qaXWw/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -344,20 +344,34 @@ function saveOrder(){
   document.getElementById('av_order').textContent = rupiah(total);
   toast('✅ Orderan ditambah'); hideForms();
 }
-
 async function selesaiKunjungan(){
   if(!currentVisit || !confirm('Kirim laporan ke kantor & WA?')) return;
   
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
-  const linkMaps = (currentVisit.lat && currentVisit.lng) ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` : '-';
+  
+  const linkMaps = (currentVisit.lat && currentVisit.lng) 
+    ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
+    : '-';
+
+  const fd = new FormData();
+  fd.append('tanggal', currentVisit.tanggal); 
+  fd.append('toko', currentVisit.toko); 
+  fd.append('jamMasuk', currentVisit.jamMasuk);
+  fd.append('jamKeluar', jamKeluar); 
+  fd.append('totalOrder', totalOrder.toString()); 
+  fd.append('foto', currentVisit.selfie || ''); 
+  fd.append('pesanan', teksPesanan);
+  fd.append('lat', currentVisit.lat || '');
+  fd.append('lng', currentVisit.lng || '');
+  fd.append('alamat', currentVisit.alamat || '-');
 
   toast('⏳ Mengirim data...');
-
-  // 1. Siapkan fungsi penampung balasan dari Google
-  window.terimaBalasanSimpan = function(result) {
-    if (result.result === 'success') {
-      
+  try {
+    const res = await fetch(API_URL, { method: 'POST', body: fd });
+    const result = await res.json();
+    
+    if(result.result === 'success'){
       let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
                     'Tanggal : ' + currentVisit.tanggal + '\n' +
                     'Toko : *' + currentVisit.toko + '*\n' +
@@ -372,55 +386,25 @@ async function selesaiKunjungan(){
       if (result.fotoUrl && result.fotoUrl !== '-') pesanWA += '\n📸 *Foto Selfie:*\n' + result.fotoUrl + '\n';
       if (result.fileUrl && result.fileUrl !== '-') pesanWA += '\n📄 *File Order (.txt):*\n' + result.fileUrl + '\n';
       
-      // TRIK KLIK OTOMATIS UNTUK MEMBUKA WA
+      // Tembak langsung ke WA
       const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
       
-      // Reset Tampilan
       currentVisit = null; orders = [];
       document.getElementById('activeVisitCard').classList.add('hidden');
       document.getElementById('checkinCard').classList.remove('hidden');
       document.getElementById('ci_lokasi').value = '';
       document.getElementById('selfiePreview').classList.add('hidden');
       
-      // Buat elemen <a> gaib dan klik otomatis
-      const a = document.createElement('a');
-      a.href = linkAppWA;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      
+      window.location.href = linkAppWA;
       toast('✅ Berhasil & Membuka WA!');
-      setTimeout(() => a.remove(), 1000);
       
-    } else {
-      toast('❌ Gagal: ' + (result.message || 'Error'));
+    } else { 
+      toast('❌ Gagal: ' + (result.message || 'Error')); 
     }
-    
-    const script = document.getElementById('jsonp-simpan');
-    if(script) script.remove();
-  };
-
-  // 2. Siapkan data untuk URL (JSONP)
-  const params = new URLSearchParams({
-    action: 'simpan',
-    tanggal: currentVisit.tanggal,
-    toko: currentVisit.toko,
-    jamMasuk: currentVisit.jamMasuk,
-    jamKeluar: jamKeluar,
-    totalOrder: totalOrder.toString(),
-    foto: currentVisit.selfie || '',
-    pesanan: teksPesanan,
-    lat: currentVisit.lat || '',
-    lng: currentVisit.lng || '',
-    alamat: currentVisit.alamat || '-',
-    callback: 'terimaBalasanSimpan'
-  });
-
-  // 3. Kirim via tag <script> (Tembus CORS)
-  const script = document.createElement('script');
-  script.id = 'jsonp-simpan';
-  script.src = API_URL + '?' + params.toString();
-  document.body.appendChild(script);
+  } catch(e){ 
+    console.error("Detail Error POST:", e);
+    toast('❌ Gagal terhubung.'); 
+  }
 }
 </script>
 </body>
