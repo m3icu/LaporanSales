@@ -349,15 +349,49 @@ async function selesaiKunjungan(){
 
   toast('⏳ Mengirim data...');
 
-  // 1. BUAT FORM TERSEMBUNYI UNTUK MENGIRIM DATA (BEBAS CORS)
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = API_URL;
-  form.target = 'iframe_pengiriman'; // Targetkan ke iframe tersembunyi
-  form.style.display = 'none';
+  // Siapkan fungsi penampung sementara untuk menerima balasan dari Apps Script
+  window.terimaBalasanSimpan = function(result) {
+    if (result.result === 'success') {
+      let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
+                    'Tanggal : ' + currentVisit.tanggal + '\n' +
+                    'Toko : *' + currentVisit.toko + '*\n' +
+                    'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
+                    '📍 Alamat : ' + currentVisit.alamat + '\n' +
+                    '🗺️ Link GPS : ' + linkMaps + '\n' +
+                    '--------------------------\n' +
+                    '*ORDERAN:*\n' + teksPesanan + '\n' +
+                    '--------------------------\n' +
+                    '*Total : ' + rupiah(totalOrder) + '*';
 
-  // 2. MASUKKAN SEMUA DATA KE DALAM FORM
-  const dataKirim = {
+      if (result.fotoUrl && result.fotoUrl !== '-') {
+        pesanWA += '\n\n📸 *Foto Selfie (Klik Link):*\n' + result.fotoUrl;
+      }
+      
+      const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
+      
+      // Reset form
+      currentVisit = null; 
+      orders = [];
+      document.getElementById('activeVisitCard').classList.add('hidden');
+      document.getElementById('checkinCard').classList.remove('hidden');
+      document.getElementById('ci_lokasi').value = '';
+      document.getElementById('selfiePreview').classList.add('hidden');
+      
+      // Buka WA
+      window.location.href = linkAppWA;
+      toast('✅ Laporan berhasil dikirim!');
+    } else {
+      toast('❌ Gagal: ' + (result.message || 'Error'));
+    }
+    
+    // Hapus script setelah selesai
+    const script = document.getElementById('jsonp-simpan');
+    if(script) script.remove();
+  };
+
+  // Ubah data menjadi URL Query String
+  const params = new URLSearchParams({
+    action: 'simpan',
     tanggal: currentVisit.tanggal,
     toko: currentVisit.toko,
     jamMasuk: currentVisit.jamMasuk,
@@ -367,66 +401,15 @@ async function selesaiKunjungan(){
     pesanan: teksPesanan,
     lat: currentVisit.lat || '',
     lng: currentVisit.lng || '',
-    alamat: currentVisit.alamat || '-'
-  };
+    alamat: currentVisit.alamat || '-',
+    callback: 'terimaBalasanSimpan' // <-- Ini memicu JSONP
+  });
 
-  for (const key in dataKirim) {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = key;
-    input.value = dataKirim[key];
-    form.appendChild(input);
-  }
-
-  // 3. BUAT IFRAME TERSEMBUNYI (UNTUK MENANGKAP RESPON DARI APPS SCRIPT)
-  let iframe = document.getElementById('iframe_pengiriman');
-  if (!iframe) {
-    iframe = document.createElement('iframe');
-    iframe.name = 'iframe_pengiriman';
-    iframe.id = 'iframe_pengiriman';
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-  }
-
-  // 4. KIRIM FORM
-  document.body.appendChild(form);
-  form.submit();
-
-  // 5. TUNGGU PROSES SELESAI, LALU BUKA WHATSAPP
-  // Kita tunggu 4 detik agar Apps Script selesai memproses gambar & simpan ke Sheet
-  setTimeout(() => {
-    let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
-                  'Tanggal : ' + currentVisit.tanggal + '\n' +
-                  'Toko : *' + currentVisit.toko + '*\n' +
-                  'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
-                  '📍 Alamat : ' + currentVisit.alamat + '\n' +
-                  '🗺️ Link GPS : ' + linkMaps + '\n' +
-                  '--------------------------\n' +
-                  '*ORDERAN:*\n' + teksPesanan + '\n' +
-                  '--------------------------\n' +
-                  '*Total : ' + rupiah(totalOrder) + '*';
-
-    // Catatan: Karena kita tidak menerima balasan JSON, link foto tidak bisa ditambahkan otomatis di sini.
-    // Tapi data tetap masuk ke Google Sheets.
-    
-    const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
-    
-    // Reset tampilan
-    currentVisit = null; 
-    orders = [];
-    document.getElementById('activeVisitCard').classList.add('hidden');
-    document.getElementById('checkinCard').classList.remove('hidden');
-    document.getElementById('ci_lokasi').value = '';
-    document.getElementById('selfiePreview').classList.add('hidden');
-    
-    // Buka WhatsApp
-    window.location.href = linkAppWA;
-    
-    toast('✅ Laporan berhasil dikirim!');
-    
-    // Hapus form dan iframe setelah selesai
-    setTimeout(() => { form.remove(); iframe.remove(); }, 2000);
-  }, 4000); // Waktu tunggu 4000 ms (4 detik)
+  // Buat script JSONP
+  const script = document.createElement('script');
+  script.id = 'jsonp-simpan';
+  script.src = API_URL + '?' + params.toString();
+  document.body.appendChild(script);
 }
 </script>
 </body>
