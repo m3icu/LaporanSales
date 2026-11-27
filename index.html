@@ -86,7 +86,7 @@
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbzwVdGdG84sUy4qzOl9OB56nMIbO4cQ1wpspwT_ZfkUrXYRkCIWyR8x3taK7xhvvovY/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyVs9UONWC29V6S7Q_POJreEo3rmXf8a1PCG6uft0B7lTDQb8bPtoKLqmbkb1_HXuG5/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -369,18 +369,68 @@ async function selesaiKunjungan(){
   
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
+  
+  const linkMaps = (currentVisit.lat && currentVisit.lng) 
+    ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
+    : '-';
 
   toast('⏳ Mengirim data...');
 
-  // 1. BUAT FORM TERSEMBUNYI
-  const form = document.createElement('form');
-  form.method = 'POST'; 
-  form.action = API_URL;
-  form.target = 'iframe_pengiriman'; // Kirim ke iframe
-  form.style.display = 'none';
+  // 1. Siapkan fungsi penerima balasan
+  window.terimaBalasanSimpan = function(result) {
+    if (result.result === 'success') {
+      
+      // Susun pesan WA
+      let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
+                    'Tanggal : ' + currentVisit.tanggal + '\n' +
+                    'Toko : *' + currentVisit.toko + '*\n' +
+                    'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
+                    '📍 Alamat : ' + currentVisit.alamat + '\n' +
+                    '🗺️ Link GPS : ' + linkMaps + '\n' +
+                    '--------------------------\n' +
+                    '*ORDERAN:*\n' + teksPesanan + '\n' +
+                    '--------------------------\n' +
+                    '*Total : ' + rupiah(totalOrder) + '*';
 
-  const dataKirim = {
-    action: 'simpan', 
+      if (result.fotoUrl && result.fotoUrl !== '-') {
+        pesanWA += '\n\n📸 *Foto Selfie (Klik Link):*\n' + result.fotoUrl;
+      }
+      
+      // Buat link WA
+      const linkAppWA = 'whatsapp://send?phone=6289657160578&text=' + encodeURIComponent(pesanWA);
+      
+      // Tampilkan tombol di layar
+      let btnLama = document.getElementById('btnCadanganWA');
+      if(btnLama) btnLama.remove();
+      
+      const a = document.createElement('a');
+      a.id = 'btnCadanganWA'; 
+      a.href = linkAppWA; 
+      a.textContent = '📲 KLIK DI SINI UNTUK BUKA WHATSAPP';
+      a.style.cssText = 'display:block;background:#25D366;color:#fff;text-align:center;padding:16px;border-radius:10px;font-weight:bold;text-decoration:none;margin-bottom:14px;font-size:16px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);';
+      document.querySelector('.container').prepend(a);
+      
+      // Reset aplikasi (kembali ke tampilan awal)
+      currentVisit = null; 
+      orders = [];
+      document.getElementById('activeVisitCard').classList.add('hidden');
+      document.getElementById('checkinCard').classList.remove('hidden');
+      document.getElementById('ci_lokasi').value = '';
+      document.getElementById('selfiePreview').classList.add('hidden');
+      
+      toast('✅ Data terkirim! Silakan klik tombol hijau.');
+      
+    } else {
+      toast('❌ Gagal: ' + (result.message || 'Error'));
+    }
+    
+    const script = document.getElementById('jsonp-simpan');
+    if(script) script.remove();
+  };
+
+  // 2. Siapkan parameter JSONP
+  const params = new URLSearchParams({
+    action: 'simpan',
     tanggal: currentVisit.tanggal,
     toko: currentVisit.toko,
     jamMasuk: currentVisit.jamMasuk,
@@ -390,60 +440,15 @@ async function selesaiKunjungan(){
     pesanan: teksPesanan,
     lat: currentVisit.lat || '',
     lng: currentVisit.lng || '',
-    alamat: currentVisit.alamat || '-'
-  };
+    alamat: currentVisit.alamat || '-',
+    callback: 'terimaBalasanSimpan'
+  });
 
-  for (const key in dataKirim) {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = key;
-    input.value = dataKirim[key];
-    form.appendChild(input);
-  }
-
-  // 2. SIAPKAN IFRAME UNTUK MENERIMA RESPON
-  let iframe = document.getElementById('iframe_pengiriman');
-  if (!iframe) {
-    iframe = document.createElement('iframe');
-    iframe.name = 'iframe_pengiriman';
-    iframe.id = 'iframe_pengiriman';
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-  }
-
-  // 3. FUNGSI YANG BERJALAN SETELAH IFRAME SELESAI DIMUAT
-  iframe.onload = function() {
-    try {
-      // Ambil URL WhatsApp dari dalam iframe (tag <p id="urlWA">)
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-      const urlWA = iframeDoc.getElementById('urlWA').innerText;
-      
-      if (urlWA && urlWA.includes('whatsapp://')) {
-        toast('✅ Data terkirim! Membuka WA...');
-        
-        // Reset tampilan aplikasi
-        currentVisit = null; 
-        orders = [];
-        document.getElementById('activeVisitCard').classList.add('hidden');
-        document.getElementById('checkinCard').classList.remove('hidden');
-        document.getElementById('ci_lokasi').value = '';
-        document.getElementById('selfiePreview').classList.add('hidden');
-
-        // Buka WhatsApp dari halaman utama (bukan dari iframe)
-        window.location.href = urlWA;
-        
-        // Hapus iframe setelah selesai
-        setTimeout(() => { iframe.remove(); }, 2000);
-      }
-    } catch(e) {
-      console.error("Gagal membaca respon iframe", e);
-      toast('❌ Gagal memproses WA.');
-    }
-  };
-
-  // 4. KIRIM FORM
-  document.body.appendChild(form);
-  form.submit();
+  // 3. Kirim via JSONP (kebal CORS)
+  const script = document.createElement('script');
+  script.id = 'jsonp-simpan';
+  script.src = API_URL + '?' + params.toString();
+  document.body.appendChild(script);
 }
 </script>
 </body>
