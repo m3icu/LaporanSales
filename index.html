@@ -49,6 +49,7 @@
     <button class="btn-green" onclick="showOrderForm()">🛒 Input Orderan</button>
     <button class="btn-red" onclick="selesaiKunjungan()" style="margin-top:16px;">✅ SELESAI & KIRIM KE KANTOR</button>
   </div>
+  
   <div class="card" id="checkinCard">
     <h2>🟢 Check-in Kunjungan Toko</h2>
     <label>🏪 Pilih Nama Toko</label>
@@ -74,6 +75,7 @@
     <input type="text" id="ci_jam" readonly>
     <button class="btn-primary" style="padding:20px;font-size:17px;" onclick="checkIn()">✅ SIMPAN CHECK-IN</button>
   </div>
+  
   <div class="card hidden" id="orderCard">
     <h2>🛒 Input Orderan</h2>
     <div id="productList"></div>
@@ -86,33 +88,41 @@
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbyDbBYKSWUoMWPybfE-RbhHv8HLvaja8cvmg3KxRfix9tKCESggrD9FaX0l-W3gmhB4/exec';
+// PASTIKAN URL INI ADALAH URL DEPLOYMENT ANDA YANG BERAKHIRAN /exec
+const API_URL = 'https://script.google.com/macros/s/AKfycbyMmMX93rlp-ebCSToO4SIsp0JjBmXtLbskr44NNMmb9e2-UTer_BVMGddlMnA_vtvP/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
 let latData = '', lngData = '', alamatData = '-';
 
-async function terjemahkanAlamat(lat, lng) {
-  try {
-    const res = await fetch(`${API_URL}?action=geocode&lat=${lat}&lng=${lng}`);
-    const data = await res.json();
-    if (data && data.alamat) {
-      alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
-    } else {
-      alamatData = `Koordinat: ${lat}, ${lng}`;
-    }
-  } catch (e) {
-    alamatData = `Koordinat: ${lat}, ${lng}`;
-  }
+// FUNGSI ALAMAT (MENGGUNAKAN JSONP)
+function terjemahkanAlamat(lat, lng) {
+  return new Promise((resolve) => {
+    window.terimaAlamat = function(data) {
+      if (data && data.alamat) {
+        alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
+      } else {
+        alamatData = `Koordinat: ${lat}, ${lng}`;
+      }
+      const script = document.getElementById('jsonp-alamat');
+      if(script) script.remove();
+      resolve();
+    };
+    const script = document.createElement('script');
+    script.id = 'jsonp-alamat';
+    script.src = `${API_URL}?action=geocode&lat=${lat}&lng=${lng}&callback=terimaAlamat&t=${new Date().getTime()}`;
+    document.body.appendChild(script);
+    setTimeout(() => { if (alamatData.startsWith('Koordinat:')) resolve(); }, 4000);
+  });
 }
 
 window.onload = async function() {
   document.getElementById('ci_jam').value = nowStr();
-  // Tanggal hari ini dimunculkan di sini
   document.getElementById('headerSub').textContent = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   loadDaftarToko();
 };
 
+// LOAD TOKO (MENGGUNAKAN JSONP)
 function loadDaftarToko() {
   const selectToko = document.getElementById('ci_toko');
   selectToko.innerHTML = '<option value="">⏳ Memuat data toko...</option>';
@@ -154,7 +164,6 @@ function hitungJarakMeter(lat1, lon1, lat2, lon2) {
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
 }
-
 
 function getGPS(){
   if(!navigator.geolocation){ toast('GPS tidak didukung'); return; }
@@ -225,39 +234,39 @@ async function capturePhoto(){
   const ctx = c.getContext('2d');
   ctx.drawImage(v, 0, 0, c.width, c.height);
 
-  const boxHeight = 170;
-  ctx.fillStyle = 'rgba(0,0,0,0.68)';
+  const boxHeight = 195;
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
   ctx.fillRect(0, c.height - boxHeight, c.width, boxHeight);
   ctx.fillStyle = '#FFC107';
   ctx.fillRect(14, c.height - boxHeight + 14, 5, boxHeight - 28);
 
   const namaToko = document.getElementById('ci_toko').value || '-';
   const tgl = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-  const startX = 28;
-  let y = c.height - boxHeight + 32;
+  const startX = 30;
+  let y = c.height - boxHeight + 35;
 
   ctx.fillStyle = '#FFC107';
-  ctx.font = 'bold 19px sans-serif';
+  ctx.font = 'bold 18px sans-serif';
   ctx.fillText('📍 ' + namaToko.toUpperCase(), startX, y);
 
-  y += 26;
+  y += 25;
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = 'bold 14px sans-serif';
   ctx.fillText(tgl + ' • ' + nowStr() + ' WIB', startX, y);
 
-  y += 24;
+  y += 22;
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = '14px sans-serif';
+  ctx.font = '13px sans-serif';
   const alamat = alamatData || '-';
-  const maxChar = 44;
+  const maxChar = 46;
   const b1 = alamat.slice(0, maxChar);
   const b2 = alamat.slice(maxChar, maxChar * 2);
   ctx.fillText(b1, startX, y);
-  if (b2) { y += 20; ctx.fillText(b2, startX, y); }
+  if (b2) { y += 18; ctx.fillText(b2, startX, y); }
 
-  y += 24;
+  y += 22;
   ctx.fillStyle = '#A5D6A7';
-  ctx.font = 'bold 13px monospace';
+  ctx.font = 'bold 12px monospace';
   ctx.fillText('GPS: ' + gpsData, startX, y);
 
   selfieData = c.toDataURL('image/jpeg', 0.78);
@@ -342,22 +351,18 @@ async function selesaiKunjungan(){
   
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
-  
-  const linkMaps = (currentVisit.lat && currentVisit.lng) 
-    ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
-    : '-';
 
   toast('⏳ Mengirim data...');
 
-  // 1. BUAT FORM TERSEMBUNYI UNTUK MENGIRIM DATA (BEBAS CORS)
+  // KIRIM MENGGUNAKAN FORM BIASA KE TAB YANG SAMA
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = API_URL;
-  form.target = 'iframe_pengiriman'; // Targetkan ke iframe tersembunyi
+  form.target = '_self'; // Membuka di tab yang sama
   form.style.display = 'none';
 
-  // 2. MASUKKAN SEMUA DATA KE DALAM FORM
   const dataKirim = {
+    action: 'simpan', 
     tanggal: currentVisit.tanggal,
     toko: currentVisit.toko,
     jamMasuk: currentVisit.jamMasuk,
@@ -378,55 +383,8 @@ async function selesaiKunjungan(){
     form.appendChild(input);
   }
 
-  // 3. BUAT IFRAME TERSEMBUNYI (UNTUK MENANGKAP RESPON DARI APPS SCRIPT)
-  let iframe = document.getElementById('iframe_pengiriman');
-  if (!iframe) {
-    iframe = document.createElement('iframe');
-    iframe.name = 'iframe_pengiriman';
-    iframe.id = 'iframe_pengiriman';
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-  }
-
-  // 4. KIRIM FORM
   document.body.appendChild(form);
   form.submit();
-
-  // 5. TUNGGU PROSES SELESAI, LALU BUKA WHATSAPP
-  // Kita tunggu 4 detik agar Apps Script selesai memproses gambar & simpan ke Sheet
-  setTimeout(() => {
-    let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
-                  'Tanggal : ' + currentVisit.tanggal + '\n' +
-                  'Toko : *' + currentVisit.toko + '*\n' +
-                  'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
-                  '📍 Alamat : ' + currentVisit.alamat + '\n' +
-                  '🗺️ Link GPS : ' + linkMaps + '\n' +
-                  '--------------------------\n' +
-                  '*ORDERAN:*\n' + teksPesanan + '\n' +
-                  '--------------------------\n' +
-                  '*Total : ' + rupiah(totalOrder) + '*';
-
-    // Catatan: Karena kita tidak menerima balasan JSON, link foto tidak bisa ditambahkan otomatis di sini.
-    // Tapi data tetap masuk ke Google Sheets.
-    
-    const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
-    
-    // Reset tampilan
-    currentVisit = null; 
-    orders = [];
-    document.getElementById('activeVisitCard').classList.add('hidden');
-    document.getElementById('checkinCard').classList.remove('hidden');
-    document.getElementById('ci_lokasi').value = '';
-    document.getElementById('selfiePreview').classList.add('hidden');
-    
-    // Buka WhatsApp
-    window.location.href = linkAppWA;
-    
-    toast('✅ Laporan berhasil dikirim!');
-    
-    // Hapus form dan iframe setelah selesai
-    setTimeout(() => { form.remove(); iframe.remove(); }, 2000);
-  }, 4000); // Waktu tunggu 4000 ms (4 detik)
 }
 </script>
 </body>
