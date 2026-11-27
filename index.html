@@ -59,7 +59,7 @@
       <button class="btn-gray btn-sm" onclick="getGPS()">📍 Ambil GPS & Deteksi</button>
       <button class="btn-orange btn-sm" onclick="pakaiTokoManual()">✏️ Ambil GPS Manual</button>
     </div>
-    <label>📸 Foto Selfie di Toko (wajib)📸 </label>
+    <label>📸 Foto Selfie di Toko (wajib) </label>
     <button class="btn-gray" onclick="openCamera()" id="btnOpenCam">📷 Buka Kamera</button>
     <video id="video" autoplay playsinline class="hidden"></video>
     <canvas id="canvas" class="hidden"></canvas>
@@ -72,7 +72,7 @@
     </div>
     <label>🕐 Jam Masuk </label>
     <input type="text" id="ci_jam" readonly>
-    <button class="btn-primary" style="padding:20px;font-size:17px;" onclick="checkIn()">✅ SIMPAN CHECK-IN </button>
+    <button class="btn-primary" style="padding:20px;font-size:17px;" onclick="checkIn()">✅ SIMPAN CHECK-IN ✅ </button>
   </div>
   <div class="card hidden" id="orderCard">
     <h2>🛒 Input Orderan</h2>
@@ -87,7 +87,7 @@
 <div class="toast" id="toast"></div>
 <script>
 // PASTIKAN URL INI ADALAH URL DEPLOYMENT ANDA YANG BERAKHIRAN /exec
-const API_URL = 'https://script.google.com/macros/s/AKfycbyH1imAJLaCtc5KkXarJZ9Zo1S0TGOo6kYPAcS8GFFwSXfcqoheoUirfrME-3_bnCHL/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbz58uZFzenv_ErMGTzfRUsb3hZTDc7mgZhUkPbeivVrqdc70nGlZJkDVh8pQ26THfpn/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -358,35 +358,58 @@ async function selesaiKunjungan(){
   
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
-  
-  const linkMaps = (currentVisit.lat && currentVisit.lng) 
-    ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
-    : '-';
 
-  const fd = new FormData();
-  fd.append('tanggal', currentVisit.tanggal); 
-  fd.append('toko', currentVisit.toko); 
-  fd.append('jamMasuk', currentVisit.jamMasuk);
-  fd.append('jamKeluar', jamKeluar); 
-  fd.append('totalOrder', totalOrder.toString()); 
-  fd.append('foto', currentVisit.selfie || ''); 
-  fd.append('pesanan', teksPesanan);
-  fd.append('lat', currentVisit.lat || '');
-  fd.append('lng', currentVisit.lng || '');
-  fd.append('alamat', currentVisit.alamat || '-');
+  toast('⏳ Mengirim data ke Google...');
 
-  toast('⏳ Mengirim data...');
-  
-  try {
-    // TRIK ANTI-CACHE: Tambahkan ?t=waktu saat ini
-    const res = await fetch(API_URL + '?t=' + Date.now(), { 
-      method: 'POST', 
-      body: fd 
-    });
-    
-    const result = await res.json();
-    
-    if(result.result === 'success'){
+  // 1. BUAT IFRAME TERSEMBUNYI (Bebas CORS)
+  let iframe = document.getElementById('iframe_kirim');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.name = 'iframe_kirim';
+    iframe.id = 'iframe_kirim';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+  }
+
+  // 2. BUAT FORM DAN MASUKKAN DATA
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = API_URL;
+  form.target = 'iframe_kirim'; 
+  form.style.display = 'none';
+
+  const dataKirim = {
+    tanggal: currentVisit.tanggal,
+    toko: currentVisit.toko,
+    jamMasuk: currentVisit.jamMasuk,
+    jamKeluar: jamKeluar,
+    totalOrder: totalOrder.toString(),
+    foto: currentVisit.selfie || '',
+    pesanan: teksPesanan,
+    lat: currentVisit.lat || '',
+    lng: currentVisit.lng || '',
+    alamat: currentVisit.alamat || '-'
+  };
+
+  for (const key in dataKirim) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = key;
+    input.value = dataKirim[key];
+    form.appendChild(input);
+  }
+
+  // 3. KIRIM FORM (Proses di latar belakang)
+  document.body.appendChild(form);
+  form.submit();
+  form.remove();
+
+  // 4. TUNGGU 4 DETIK, LALU AMBIL LINK DARI SHEET
+  toast('⏳ Menyiapkan WhatsApp...');
+  setTimeout(() => {
+    window.ambilLinkWA = function(res) {
+      let linkMaps = (currentVisit.lat && currentVisit.lng) ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` : '-';
+      
       let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
                     'Tanggal : ' + currentVisit.tanggal + '\n' +
                     'Toko : *' + currentVisit.toko + '*\n' +
@@ -398,12 +421,15 @@ async function selesaiKunjungan(){
                     '--------------------------\n' +
                     '*Total : ' + rupiah(totalOrder) + '*\n';
 
-      if (result.fotoUrl && result.fotoUrl !== '-') pesanWA += '\n📸 *Foto Selfie:*\n' + result.fotoUrl + '\n';
-      if (result.fileUrl && result.fileUrl !== '-') pesanWA += '\n📄 *File Order (.txt):*\n' + result.fileUrl + '\n';
+      if (res && res.result === 'success') {
+        if (res.fotoUrl && res.fotoUrl !== '-') pesanWA += '\n📸 *Foto Selfie:*\n' + res.fotoUrl + '\n';
+        if (res.fileUrl && res.fileUrl !== '-') pesanWA += '\n📄 *File Order (.txt):*\n' + res.fileUrl + '\n';
+      }
       
-      // Tembak langsung ke WA
+      // Tembak WA
       const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
       
+      // Reset Aplikasi
       currentVisit = null; orders = [];
       document.getElementById('activeVisitCard').classList.add('hidden');
       document.getElementById('checkinCard').classList.remove('hidden');
@@ -411,15 +437,19 @@ async function selesaiKunjungan(){
       document.getElementById('selfiePreview').classList.add('hidden');
       
       window.location.href = linkAppWA;
-      toast('✅ Berhasil & Membuka WA!');
+      toast('✅ Membuka WA!');
       
-    } else { 
-      toast('❌ Gagal: ' + (result.message || 'Error')); 
-    }
-  } catch(e){ 
-    console.error("Detail Error POST:", e);
-    toast('❌ Gagal terhubung.'); 
-  }
+      const script = document.getElementById('jsonp-latest');
+      if(script) script.remove();
+    };
+
+    // Panggil API untuk ambil baris terakhir
+    const script = document.createElement('script');
+    script.id = 'jsonp-latest';
+    script.src = API_URL + '?action=latest&callback=ambilLinkWA&t=' + Date.now();
+    document.body.appendChild(script);
+
+  }, 4000); // Waktu tunggu 4 detik agar Google selesai upload
 }
 </script>
 </body>
