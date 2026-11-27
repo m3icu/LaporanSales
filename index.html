@@ -49,7 +49,6 @@
     <button class="btn-green" onclick="showOrderForm()">🛒 Input Orderan</button>
     <button class="btn-red" onclick="selesaiKunjungan()" style="margin-top:16px;">✅ SELESAI & KIRIM KE KANTOR</button>
   </div>
-  
   <div class="card" id="checkinCard">
     <h2>🟢 Check-in Kunjungan Toko</h2>
     <label>🏪 Pilih Nama Toko</label>
@@ -75,7 +74,6 @@
     <input type="text" id="ci_jam" readonly>
     <button class="btn-primary" style="padding:20px;font-size:17px;" onclick="checkIn()">✅ SIMPAN CHECK-IN</button>
   </div>
-  
   <div class="card hidden" id="orderCard">
     <h2>🛒 Input Orderan</h2>
     <div id="productList"></div>
@@ -88,67 +86,51 @@
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbxn3J0Ol-11WWUy4WsMCs5E1t1K9Qsb6nBE8KIaZJ0wLxrZGrN6CaQIJzjnAwVsXyHL/exec';
+// PASTIKAN URL INI ADALAH URL DEPLOYMENT ANDA YANG BERAKHIRAN /exec
+const API_URL = 'https://script.google.com/macros/s/AKfycbyJ1Kcp_EbbH8Es1ftk0eUMfsTIcAVe5nLByUqU_dUphHOR5eODKIrRwFDd6AfbPCHo/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
 let latData = '', lngData = '', alamatData = '-';
 
-function terjemahkanAlamat(lat, lng) {
-  return new Promise((resolve) => {
-    window.terimaAlamat = function(data) {
-      if (data && data.alamat) {
-        alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
-      } else {
-        alamatData = `Koordinat: ${lat}, ${lng}`;
-      }
-      const script = document.getElementById('jsonp-alamat');
-      if(script) script.remove();
-      resolve();
-    };
-    const script = document.createElement('script');
-    script.id = 'jsonp-alamat';
-    script.src = `${API_URL}?action=geocode&lat=${lat}&lng=${lng}&callback=terimaAlamat&t=${new Date().getTime()}`;
-    document.body.appendChild(script);
-    setTimeout(() => { if (alamatData.startsWith('Koordinat:')) resolve(); }, 4000);
-  });
+async function terjemahkanAlamat(lat, lng) {
+  try {
+    const res = await fetch(`${API_URL}?action=geocode&lat=${lat}&lng=${lng}`);
+    const data = await res.json();
+    if (data && data.alamat) {
+      alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
+    } else {
+      alamatData = `Koordinat: ${lat}, ${lng}`;
+    }
+  } catch (e) {
+    alamatData = `Koordinat: ${lat}, ${lng}`;
+  }
 }
 
 window.onload = async function() {
   document.getElementById('ci_jam').value = nowStr();
   document.getElementById('headerSub').textContent = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  loadDaftarToko();
+  await loadDaftarToko();
 };
 
-function loadDaftarToko() {
+async function loadDaftarToko() {
   const selectToko = document.getElementById('ci_toko');
-  selectToko.innerHTML = '<option value="">⏳ Memuat data toko...</option>';
-  
-  window.terimaDataToko = function(data) {
-    try {
-      if (data.result === 'success' && data.toko) {
-        DAFTAR_TOKO = data.toko;
-        selectToko.innerHTML = '<option value="">-- Pilih Toko dari Daftar --</option>';
-        DAFTAR_TOKO.forEach(t => {
-          let opt = document.createElement('option');
-          opt.value = t.nama; opt.textContent = t.nama;
-          selectToko.appendChild(opt);
-        });
-        toast('✅ ' + DAFTAR_TOKO.length + ' toko dimuat');
-      } else {
-        selectToko.innerHTML = '<option value="">(Gagal memuat data)</option>';
-      }
-    } catch(e) {
-      selectToko.innerHTML = '<option value="">(Error parsing data)</option>';
+  try {
+    const response = await fetch(API_URL);
+    const data = await response.json();
+    if (data.result === 'success' && data.toko) {
+      DAFTAR_TOKO = data.toko;
+      selectToko.innerHTML = '<option value="">-- Pilih Toko dari Daftar --</option>';
+      DAFTAR_TOKO.forEach(t => {
+        let opt = document.createElement('option');
+        opt.value = t.nama; opt.textContent = t.nama;
+        selectToko.appendChild(opt);
+      });
+      toast('✅ ' + DAFTAR_TOKO.length + ' toko dimuat');
+    } else {
+      selectToko.innerHTML = '<option value="">(Gagal memuat toko)</option>';
     }
-    const script = document.getElementById('jsonp-toko');
-    if(script) script.remove();
-  };
-
-  const script = document.createElement('script');
-  script.id = 'jsonp-toko';
-  script.src = API_URL + '?callback=terimaDataToko&t=' + new Date().getTime();
-  document.body.appendChild(script);
+  } catch (e) { selectToko.innerHTML = '<option value="">(Error koneksi)</option>'; }
 }
 
 function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
@@ -212,65 +194,68 @@ async function capturePhoto(){
     toast('⏳ Mengambil GPS...');
     await new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition((pos) => {
-        latData = pos.coords.latitude.toFixed(6);
-        lngData = pos.coords.longitude.toFixed(6);
+        latData = pos.coords.latitude.toFixed(6).trim();
+        lngData = pos.coords.longitude.toFixed(6).trim();
         gpsData = latData + ',' + lngData;
         document.getElementById('ci_lokasi').value = gpsData;
         resolve();
-      }, () => resolve(), { enableHighAccuracy: true, timeout: 10000 });
+      }, () => resolve(), { enableHighAccuracy: true, timeout: 8000 });
     });
   }
-  if (!latData || !lngData) { toast('❌ GPS gagal'); return; }
 
-  toast('⏳ Menerjemahkan alamat...');
-  await terjemahkanAlamat(latData, lngData);
+  if (latData && lngData && (!alamatData || alamatData === '-' || alamatData.startsWith('Koordinat:'))) {
+    await terjemahkanAlamat(latData, lngData);
+  }
 
   const v = document.getElementById('video'), c = document.getElementById('canvas');
-  c.width = v.videoWidth || 720;
+  c.width = v.videoWidth || 720; 
   c.height = v.videoHeight || 960;
   const ctx = c.getContext('2d');
   ctx.drawImage(v, 0, 0, c.width, c.height);
 
-  const boxHeight = 195;
-  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  const boxHeight = 160;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.68)';
   ctx.fillRect(0, c.height - boxHeight, c.width, boxHeight);
+
   ctx.fillStyle = '#FFC107';
   ctx.fillRect(14, c.height - boxHeight + 14, 5, boxHeight - 28);
 
-  const namaToko = document.getElementById('ci_toko').value || '-';
-  const tgl = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-  const startX = 30;
-  let y = c.height - boxHeight + 35;
+  const namaToko = document.getElementById('ci_toko').value || 'Toko Kunjungan';
+  const tglLengkap = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+  const startX = 28;
+  let y = c.height - boxHeight + 34;
 
   ctx.fillStyle = '#FFC107';
-  ctx.font = 'bold 18px sans-serif';
+  ctx.font = 'bold 20px sans-serif';
   ctx.fillText('📍 ' + namaToko.toUpperCase(), startX, y);
 
-  y += 25;
+  y += 26;
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 14px sans-serif';
-  ctx.fillText(tgl + ' • ' + nowStr() + ' WIB', startX, y);
+  ctx.font = 'bold 16px sans-serif';
+  ctx.fillText(tglLengkap + '  •  ' + nowStr() + ' WIB', startX, y);
 
-  y += 22;
+  y += 24;
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = '13px sans-serif';
-  const alamat = alamatData || '-';
-  const maxChar = 46;
-  const b1 = alamat.slice(0, maxChar);
-  const b2 = alamat.slice(maxChar, maxChar * 2);
-  ctx.fillText(b1, startX, y);
-  if (b2) { y += 18; ctx.fillText(b2, startX, y); }
+  ctx.font = '15px sans-serif';
+  const baris1 = alamatData.length > 46 ? alamatData.slice(0, 46) : alamatData;
+  const baris2 = alamatData.length > 46 ? alamatData.slice(46, 92) : '';
+  ctx.fillText(baris1, startX, y);
+  if (baris2) {
+    y += 20;
+    ctx.fillText(baris2, startX, y);
+  }
 
-  y += 22;
+  y += 24;
   ctx.fillStyle = '#A5D6A7';
-  ctx.font = 'bold 12px monospace';
-  ctx.fillText('GPS: ' + gpsData, startX, y);
+  ctx.font = 'bold 14px monospace';
+  ctx.fillText('GPS: ' + (gpsData || '-'), startX, y);
 
   selfieData = c.toDataURL('image/jpeg', 0.78);
-  const p = document.getElementById('selfiePreview');
-  p.src = selfieData; p.classList.remove('hidden');
-  closeCamera();
-  toast('📸 Foto + alamat tersimpan');
+  const p = document.getElementById('selfiePreview'); 
+  p.src = selfieData; 
+  p.classList.remove('hidden');
+  closeCamera(); 
+  toast('📸 Foto & alamat tersimpan');
 }
 
 function closeCamera(){
@@ -343,91 +328,68 @@ function saveOrder(){
   toast('✅ Orderan ditambah'); hideForms();
 }
 
-// =========================================================
-// INI BAGIAN YANG DIPERBAIKI: KIRIM VIA IFRAME TERSEMBUNYI
-// =========================================================
 async function selesaiKunjungan(){
   if(!currentVisit || !confirm('Kirim laporan ke kantor & WA?')) return;
   
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
-  const linkMaps = (currentVisit.lat && currentVisit.lng) ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` : '-';
+  
+  // PERBAIKAN: Link Google Maps yang valid
+  const linkMaps = (currentVisit.lat && currentVisit.lng) 
+    ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
+    : '-';
 
-  toast('⏳ Mengirim data ke Google...');
+  const fd = new FormData();
+  fd.append('tanggal', currentVisit.tanggal); 
+  fd.append('toko', currentVisit.toko); 
+  fd.append('jamMasuk', currentVisit.jamMasuk);
+  fd.append('jamKeluar', jamKeluar); 
+  fd.append('totalOrder', totalOrder.toString()); 
+  fd.append('foto', currentVisit.selfie || ''); 
+  fd.append('pesanan', teksPesanan);
+  fd.append('lat', currentVisit.lat || '');
+  fd.append('lng', currentVisit.lng || '');
+  fd.append('alamat', currentVisit.alamat || '-');
 
-  // 1. Buat iframe tersembunyi
-  let iframe = document.getElementById('iframe_kirim');
-  if (!iframe) {
-    iframe = document.createElement('iframe');
-    iframe.name = 'iframe_kirim';
-    iframe.id = 'iframe_kirim';
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
+  toast('⏳ Mengirim data...');
+  try {
+    const res = await fetch(API_URL, { method: 'POST', body: fd });
+    const result = await res.json();
+    
+    if(result.result === 'success'){
+      let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
+                    'Tanggal : ' + currentVisit.tanggal + '\n' +
+                    'Toko : *' + currentVisit.toko + '*\n' +
+                    'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
+                    '📍 Alamat : ' + currentVisit.alamat + '\n' +
+                    '🗺️ Link GPS : ' + linkMaps + '\n' +
+                    '--------------------------\n' +
+                    '*ORDERAN:*\n' + teksPesanan + '\n' +
+                    '--------------------------\n' +
+                    '*Total : ' + rupiah(totalOrder) + '*';
+
+      if (result.fotoUrl && result.fotoUrl !== '-') pesanWA += '\n\n📸 Foto Selfie :\n' + result.fotoUrl;
+      if (result.fileUrl && result.fileUrl !== '-') pesanWA += '\n\n📄 File Order (.txt) :\n' + result.fileUrl;
+      
+      // Tembak langsung ke WA tanpa pindah layar
+      const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
+      
+      currentVisit = null; orders = [];
+      document.getElementById('activeVisitCard').classList.add('hidden');
+      document.getElementById('checkinCard').classList.remove('hidden');
+      document.getElementById('ci_lokasi').value = '';
+      document.getElementById('selfiePreview').classList.add('hidden');
+      
+      window.location.href = linkAppWA;
+      toast('✅ Berhasil & Membuka WA!');
+      
+    } else { 
+      toast('❌ Gagal: ' + (result.message || 'Error')); 
+    }
+  } catch(e){ 
+    console.error("Detail Error POST:", e);
+    toast('❌ Error Jaringan: Gagal mengirim ke Google.'); 
   }
-
-  // 2. Buat form
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = API_URL;
-  form.target = 'iframe_kirim'; 
-  form.style.display = 'none';
-
-  const dataKirim = {
-    action: 'simpan', 
-    tanggal: currentVisit.tanggal,
-    toko: currentVisit.toko,
-    jamMasuk: currentVisit.jamMasuk,
-    jamKeluar: jamKeluar,
-    totalOrder: totalOrder.toString(),
-    foto: currentVisit.selfie || '',
-    pesanan: teksPesanan,
-    lat: currentVisit.lat || '',
-    lng: currentVisit.lng || '',
-    alamat: currentVisit.alamat || '-'
-  };
-
-  for (const key in dataKirim) {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = key;
-    input.value = dataKirim[key];
-    form.appendChild(input);
-  }
-
-  document.body.appendChild(form);
-  form.submit();
-
-  // 3. Tunggu 4 detik, lalu buka WA langsung
-  setTimeout(() => {
-    // Karena tidak membaca balasan dari Google, link foto tidak disertakan di WA.
-    let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
-                  'Tanggal : ' + currentVisit.tanggal + '\n' +
-                  'Toko : *' + currentVisit.toko + '*\n' +
-                  'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
-                  '📍 Alamat : ' + currentVisit.alamat + '\n' +
-                  '🗺️ Link GPS : ' + linkMaps + '\n' +
-                  '--------------------------\n' +
-                  '*ORDERAN:*\n' + teksPesanan + '\n' +
-                  '--------------------------\n' +
-                  '*Total : ' + rupiah(totalOrder) + '*\n\n' +
-                  '_(Foto selfie & file order sudah tersimpan di Drive/Sheets)_';
-
-    // Tembak langsung ke WA
-    const linkWA = 'https://wa.me/6289657160578?text=' + encodeURIComponent(pesanWA);
-
-    // Reset aplikasi
-    currentVisit = null; 
-    orders = [];
-    document.getElementById('activeVisitCard').classList.add('hidden');
-    document.getElementById('checkinCard').classList.remove('hidden');
-    document.getElementById('ci_lokasi').value = '';
-    document.getElementById('selfiePreview').classList.add('hidden');
-    form.remove();
-
-    toast('✅ Membuka WhatsApp...');
-    window.location.href = linkWA; // Pindah ke WA tanpa buka tab baru
-
-  }, 4000); // 4000 ms = 4 detik (waktu untuk Google memproses foto)
 }
 </script>
 </body>
