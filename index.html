@@ -92,18 +92,32 @@ const NOMOR_WA_ADMIN = '6289657160578';
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
 let latData = '', lngData = '', alamatData = '-';
 
-async function terjemahkanAlamat(lat, lng) {
-  try {
-    const res = await fetch(`${API_URL}?action=geocode&lat=${lat}&lng=${lng}`);
-    const data = await res.json();
-    if (data && data.alamat) {
-      alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
-    } else {
-      alamatData = `Koordinat: ${lat}, ${lng}`;
-    }
-  } catch (e) {
-    alamatData = `Koordinat: ${lat}, ${lng}`;
-  }
+function terjemahkanAlamat(lat, lng) {
+  return new Promise((resolve) => {
+    // Buat fungsi penampung sementara untuk menerima alamat dari Google
+    window.terimaAlamat = function(data) {
+      if (data && data.alamat) {
+        alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
+      } else {
+        alamatData = `Koordinat: ${lat}, ${lng}`;
+      }
+      // Hapus script setelah selesai
+      const script = document.getElementById('jsonp-alamat');
+      if(script) script.remove();
+      resolve();
+    };
+
+    // Buat tag script untuk memanggil Apps Script menggunakan JSONP
+    const script = document.createElement('script');
+    script.id = 'jsonp-alamat';
+    script.src = `${API_URL}?action=geocode&lat=${lat}&lng=${lng}&callback=terimaAlamat&t=${new Date().getTime()}`;
+    document.body.appendChild(script);
+    
+    // Timeout jika server lambat merespons (misal 5 detik)
+    setTimeout(() => {
+      if (alamatData.startsWith('Koordinat:')) resolve();
+    }, 5000);
+  });
 }
 
 window.onload = async function() {
