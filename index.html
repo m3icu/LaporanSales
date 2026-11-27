@@ -368,7 +368,10 @@ async function selesaiKunjungan(){
 
   toast('⏳ Mengirim data...');
   try {
-    const res = await fetch(API_URL, { method: 'POST', body: fd });
+    const res = await fetch(API_URL + '?t=' + Date.now(), { 
+      method: 'POST', 
+      body: fd 
+    });
     const result = await res.json();
     
     if(result.result === 'success'){
