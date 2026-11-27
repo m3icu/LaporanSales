@@ -88,14 +88,12 @@
 </div>
 <div class="toast" id="toast"></div>
 <script>
-// PASTIKAN URL INI ADALAH URL DEPLOYMENT ANDA YANG BERAKHIRAN /exec
-const API_URL = 'https://script.google.com/macros/s/AKfycbyMmMX93rlp-ebCSToO4SIsp0JjBmXtLbskr44NNMmb9e2-UTer_BVMGddlMnA_vtvP/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxn3J0Ol-11WWUy4WsMCs5E1t1K9Qsb6nBE8KIaZJ0wLxrZGrN6CaQIJzjnAwVsXyHL/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
 let latData = '', lngData = '', alamatData = '-';
 
-// FUNGSI ALAMAT (MENGGUNAKAN JSONP)
 function terjemahkanAlamat(lat, lng) {
   return new Promise((resolve) => {
     window.terimaAlamat = function(data) {
@@ -122,7 +120,6 @@ window.onload = async function() {
   loadDaftarToko();
 };
 
-// LOAD TOKO (MENGGUNAKAN JSONP)
 function loadDaftarToko() {
   const selectToko = document.getElementById('ci_toko');
   selectToko.innerHTML = '<option value="">⏳ Memuat data toko...</option>';
@@ -346,19 +343,33 @@ function saveOrder(){
   toast('✅ Orderan ditambah'); hideForms();
 }
 
+// =========================================================
+// INI BAGIAN YANG DIPERBAIKI: KIRIM VIA IFRAME TERSEMBUNYI
+// =========================================================
 async function selesaiKunjungan(){
   if(!currentVisit || !confirm('Kirim laporan ke kantor & WA?')) return;
   
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
+  const linkMaps = (currentVisit.lat && currentVisit.lng) ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` : '-';
 
-  toast('⏳ Mengirim data...');
+  toast('⏳ Mengirim data ke Google...');
 
-  // KIRIM MENGGUNAKAN FORM BIASA KE TAB YANG SAMA
+  // 1. Buat iframe tersembunyi
+  let iframe = document.getElementById('iframe_kirim');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.name = 'iframe_kirim';
+    iframe.id = 'iframe_kirim';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+  }
+
+  // 2. Buat form
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = API_URL;
-  form.target = '_self'; // Membuka di tab yang sama
+  form.target = 'iframe_kirim'; 
   form.style.display = 'none';
 
   const dataKirim = {
@@ -385,6 +396,38 @@ async function selesaiKunjungan(){
 
   document.body.appendChild(form);
   form.submit();
+
+  // 3. Tunggu 4 detik, lalu buka WA langsung
+  setTimeout(() => {
+    // Karena tidak membaca balasan dari Google, link foto tidak disertakan di WA.
+    let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
+                  'Tanggal : ' + currentVisit.tanggal + '\n' +
+                  'Toko : *' + currentVisit.toko + '*\n' +
+                  'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
+                  '📍 Alamat : ' + currentVisit.alamat + '\n' +
+                  '🗺️ Link GPS : ' + linkMaps + '\n' +
+                  '--------------------------\n' +
+                  '*ORDERAN:*\n' + teksPesanan + '\n' +
+                  '--------------------------\n' +
+                  '*Total : ' + rupiah(totalOrder) + '*\n\n' +
+                  '_(Foto selfie & file order sudah tersimpan di Drive/Sheets)_';
+
+    // Tembak langsung ke WA
+    const linkWA = 'https://wa.me/6289657160578?text=' + encodeURIComponent(pesanWA);
+
+    // Reset aplikasi
+    currentVisit = null; 
+    orders = [];
+    document.getElementById('activeVisitCard').classList.add('hidden');
+    document.getElementById('checkinCard').classList.remove('hidden');
+    document.getElementById('ci_lokasi').value = '';
+    document.getElementById('selfiePreview').classList.add('hidden');
+    form.remove();
+
+    toast('✅ Membuka WhatsApp...');
+    window.location.href = linkWA; // Pindah ke WA tanpa buka tab baru
+
+  }, 4000); // 4000 ms = 4 detik (waktu untuk Google memproses foto)
 }
 </script>
 </body>
