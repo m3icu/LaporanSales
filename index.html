@@ -97,7 +97,6 @@ async function terjemahkanAlamat(lat, lng) {
     const res = await fetch(`${API_URL}?action=geocode&lat=${lat}&lng=${lng}`);
     const data = await res.json();
     if (data && data.alamat) {
-      // Hapus kata ", Indonesia" di paling belakang agar lebih ringkas di foto
       alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
     } else {
       alamatData = `Koordinat: ${lat}, ${lng}`;
@@ -107,18 +106,17 @@ async function terjemahkanAlamat(lat, lng) {
   }
 }
 
-
 window.onload = async function() {
   document.getElementById('ci_jam').value = nowStr();
+  // Tanggal hari ini dimunculkan di sini
   document.getElementById('headerSub').textContent = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  await loadDaftarToko();
+  loadDaftarToko();
 };
 
 function loadDaftarToko() {
   const selectToko = document.getElementById('ci_toko');
   selectToko.innerHTML = '<option value="">⏳ Memuat data toko...</option>';
   
-  // Buat fungsi penampung sementara untuk menerima data dari Apps Script
   window.terimaDataToko = function(data) {
     try {
       if (data.result === 'success' && data.toko) {
@@ -136,24 +134,16 @@ function loadDaftarToko() {
     } catch(e) {
       selectToko.innerHTML = '<option value="">(Error parsing data)</option>';
     }
-    // Hapus script setelah selesai
     const script = document.getElementById('jsonp-toko');
     if(script) script.remove();
   };
 
-  // Buat tag script yang menunjuk ke API Apps Script
   const script = document.createElement('script');
   script.id = 'jsonp-toko';
-  script.src = API_URL + '?callback=terimaDataToko&t=' + new Date().getTime(); // t= mencegah cache
+  script.src = API_URL + '?callback=terimaDataToko&t=' + new Date().getTime();
   document.body.appendChild(script);
 }
 
-  // Buat tag script yang menunjuk ke API Apps Script
-  const script = document.createElement('script');
-  script.id = 'jsonp-toko';
-  script.src = API_URL + '?callback=terimaDataToko&t=' + new Date().getTime(); // t= mencegah cache
-  document.body.appendChild(script);
-}
 function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
 function nowStr(){ return new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -211,7 +201,6 @@ async function openCamera(){
 }
 
 async function capturePhoto(){
-  // Ambil GPS kalau belum ada
   if (!latData || !lngData) {
     toast('⏳ Mengambil GPS...');
     await new Promise((resolve) => {
@@ -226,7 +215,6 @@ async function capturePhoto(){
   }
   if (!latData || !lngData) { toast('❌ GPS gagal'); return; }
 
-  // Selalu terjemahkan alamat sebelum menggambar
   toast('⏳ Menerjemahkan alamat...');
   await terjemahkanAlamat(latData, lngData);
 
@@ -247,18 +235,15 @@ async function capturePhoto(){
   const startX = 28;
   let y = c.height - boxHeight + 32;
 
-  // Nama toko
   ctx.fillStyle = '#FFC107';
   ctx.font = 'bold 19px sans-serif';
   ctx.fillText('📍 ' + namaToko.toUpperCase(), startX, y);
 
-  // Tanggal & jam
   y += 26;
   ctx.fillStyle = '#FFFFFF';
   ctx.font = 'bold 15px sans-serif';
   ctx.fillText(tgl + ' • ' + nowStr() + ' WIB', startX, y);
 
-  // Alamat (wrap 2 baris)
   y += 24;
   ctx.fillStyle = '#FFFFFF';
   ctx.font = '14px sans-serif';
@@ -269,7 +254,6 @@ async function capturePhoto(){
   ctx.fillText(b1, startX, y);
   if (b2) { y += 20; ctx.fillText(b2, startX, y); }
 
-  // GPS
   y += 24;
   ctx.fillStyle = '#A5D6A7';
   ctx.font = 'bold 13px monospace';
@@ -281,19 +265,6 @@ async function capturePhoto(){
   closeCamera();
   toast('📸 Foto + alamat tersimpan');
 }
-
-// ---- 3. KIRIM WA ----
-let pesanWA =
-  '*LAPORAN KUNJUNGAN & ORDER*\n' +
-  'Tanggal : ' + currentVisit.tanggal + '\n' +
-  'Toko : *' + currentVisit.toko + '*\n' +
-  'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
-  '📍 Alamat : ' + currentVisit.alamat + '\n' +
-  '🗺️ Link GPS : ' + linkMaps + '\n' +
-  '--------------------------\n' +
-  '*ORDERAN:*\n' + teksPesanan + '\n' +
-  '--------------------------\n' +
-  '*Total : ' + rupiah(totalOrder) + '*';
 
 function closeCamera(){
   if(mediaStream){ mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
@@ -326,7 +297,6 @@ function checkIn(){
   document.getElementById('selfiePreview').classList.add('hidden');
   toast('✅ Check-in berhasil');
 }
-
 
 function showOrderForm(){
   document.getElementById('orderCard').classList.remove('hidden');
@@ -372,27 +342,30 @@ async function selesaiKunjungan(){
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
   
-  // PERBAIKAN LINK GPS GOOGLE MAPS
   const linkMaps = (currentVisit.lat && currentVisit.lng) 
     ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
     : '-';
 
-  const fd = new FormData();
-  fd.append('tanggal', currentVisit.tanggal); 
-  fd.append('toko', currentVisit.toko); 
-  fd.append('jamMasuk', currentVisit.jamMasuk);
-  fd.append('jamKeluar', jamKeluar); 
-  fd.append('totalOrder', totalOrder.toString()); 
-  fd.append('foto', currentVisit.selfie || ''); // Mengirim data base64
-  fd.append('pesanan', teksPesanan);
-  fd.append('lat', currentVisit.lat || '');
-  fd.append('lng', currentVisit.lng || '');
-  fd.append('alamat', currentVisit.alamat || '-');
+  const formData = new FormData();
+  formData.append('tanggal', currentVisit.tanggal); 
+  formData.append('toko', currentVisit.toko); 
+  formData.append('jamMasuk', currentVisit.jamMasuk);
+  formData.append('jamKeluar', jamKeluar); 
+  formData.append('totalOrder', totalOrder.toString()); 
+  formData.append('foto', currentVisit.selfie || '');
+  formData.append('pesanan', teksPesanan);
+  formData.append('lat', currentVisit.lat || '');
+  formData.append('lng', currentVisit.lng || '');
+  formData.append('alamat', currentVisit.alamat || '-');
 
-  toast('⏳ Mengirim data & upload foto...');
-  
+  toast('⏳ Mengirim data...');
+
   try {
-    const res = await fetch(API_URL, { method: 'POST', body: fd });
+    const res = await fetch(API_URL, { 
+      method: 'POST', 
+      body: formData 
+    });
+    
     const result = await res.json();
     
     if(result.result === 'success'){
@@ -407,7 +380,6 @@ async function selesaiKunjungan(){
                     '--------------------------\n' +
                     '*Total : ' + rupiah(totalOrder) + '*';
 
-      // MENAMBAHKAN LINK FOTO DARI GOOGLE DRIVE
       if (result.fotoUrl && result.fotoUrl !== '-') {
         pesanWA += '\n\n📸 *Foto Selfie (Klik Link):*\n' + result.fotoUrl;
       }
@@ -419,25 +391,15 @@ async function selesaiKunjungan(){
       document.getElementById('activeVisitCard').classList.add('hidden');
       document.getElementById('checkinCard').classList.remove('hidden');
       
-      // Buka WA
       window.location.href = linkAppWA;
-      
-      // Tombol cadangan jika WA tidak terbuka otomatis
-      let btnLama = document.getElementById('btnCadanganWA');
-      if(btnLama) btnLama.remove();
-      const a = document.createElement('a');
-      a.id = 'btnCadanganWA'; 
-      a.href = linkAppWA; 
-      a.textContent = '📲 KLIK DI SINI JIKA WA BELUM TERBUKA';
-      a.style.cssText = 'display:block;background:#25D366;color:#fff;text-align:center;padding:16px;border-radius:10px;font-weight:bold;text-decoration:none;margin-bottom:14px;';
-      document.querySelector('.container').prepend(a);
       
       toast('✅ Laporan berhasil dikirim!');
     } else { 
       toast('❌ Gagal: ' + (result.message || 'Error')); 
     }
   } catch(e){ 
-    toast('❌ Error: ' + e.message); 
+    console.error("Detail Error POST:", e);
+    toast('❌ Error jaringan saat mengirim.'); 
   }
 }
 </script>
