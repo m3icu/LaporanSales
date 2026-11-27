@@ -86,7 +86,7 @@
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbyVs9UONWC29V6S7Q_POJreEo3rmXf8a1PCG6uft0B7lTDQb8bPtoKLqmbkb1_HXuG5/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwDsE0ZCsqSsIwLyXcwMDeAtw6Upb2RtN8QapgyaTyi7erhXqFE-3Npby6r_OFX5V0M/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -376,11 +376,10 @@ async function selesaiKunjungan(){
 
   toast('⏳ Mengirim data...');
 
-  // 1. Siapkan fungsi penerima balasan
+  // 1. Fungsi untuk menerima balasan dari Apps Script
   window.terimaBalasanSimpan = function(result) {
     if (result.result === 'success') {
       
-      // Susun pesan WA
       let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
                     'Tanggal : ' + currentVisit.tanggal + '\n' +
                     'Toko : *' + currentVisit.toko + '*\n' +
@@ -396,10 +395,9 @@ async function selesaiKunjungan(){
         pesanWA += '\n\n📸 *Foto Selfie (Klik Link):*\n' + result.fotoUrl;
       }
       
-      // Buat link WA
       const linkAppWA = 'whatsapp://send?phone=6289657160578&text=' + encodeURIComponent(pesanWA);
       
-      // Tampilkan tombol di layar
+      // --- TAMPILKAN TOMBOL HIJAU DI LAYAR ---
       let btnLama = document.getElementById('btnCadanganWA');
       if(btnLama) btnLama.remove();
       
@@ -418,17 +416,18 @@ async function selesaiKunjungan(){
       document.getElementById('ci_lokasi').value = '';
       document.getElementById('selfiePreview').classList.add('hidden');
       
-      toast('✅ Data terkirim! Silakan klik tombol hijau.');
+      toast('✅ Data tersimpan! Silakan klik tombol hijau.');
       
     } else {
       toast('❌ Gagal: ' + (result.message || 'Error'));
     }
     
+    // Hapus script setelah selesai
     const script = document.getElementById('jsonp-simpan');
     if(script) script.remove();
   };
 
-  // 2. Siapkan parameter JSONP
+  // 2. Siapkan data untuk dikirim lewat URL (JSONP)
   const params = new URLSearchParams({
     action: 'simpan',
     tanggal: currentVisit.tanggal,
@@ -444,7 +443,7 @@ async function selesaiKunjungan(){
     callback: 'terimaBalasanSimpan'
   });
 
-  // 3. Kirim via JSONP (kebal CORS)
+  // 3. Kirim data
   const script = document.createElement('script');
   script.id = 'jsonp-simpan';
   script.src = API_URL + '?' + params.toString();
