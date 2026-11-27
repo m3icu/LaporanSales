@@ -348,12 +348,14 @@ function saveOrder(){
 
 async function selesaiKunjungan(){
   if(!currentVisit || !confirm('Kirim laporan ke kantor & WA?')) return;
+  
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
   
-  const linkMaps = (currentVisit.lat && currentVisit.lng)
-  ? 'https://www.google.com/maps?q=' + currentVisit.lat + ',' + currentVisit.lng
-  : '-';
+  // PERBAIKAN LINK GPS GOOGLE MAPS
+  const linkMaps = (currentVisit.lat && currentVisit.lng) 
+    ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
+    : '-';
 
   const fd = new FormData();
   fd.append('tanggal', currentVisit.tanggal); 
@@ -361,16 +363,18 @@ async function selesaiKunjungan(){
   fd.append('jamMasuk', currentVisit.jamMasuk);
   fd.append('jamKeluar', jamKeluar); 
   fd.append('totalOrder', totalOrder.toString()); 
-  fd.append('foto', currentVisit.selfie || ''); 
+  fd.append('foto', currentVisit.selfie || ''); // Mengirim data base64
   fd.append('pesanan', teksPesanan);
   fd.append('lat', currentVisit.lat || '');
   fd.append('lng', currentVisit.lng || '');
   fd.append('alamat', currentVisit.alamat || '-');
 
-  toast('⏳ Mengirim...');
+  toast('⏳ Mengirim data & upload foto...');
+  
   try {
     const res = await fetch(API_URL, { method: 'POST', body: fd });
     const result = await res.json();
+    
     if(result.result === 'success'){
       let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
                     'Tanggal : ' + currentVisit.tanggal + '\n' +
@@ -383,22 +387,38 @@ async function selesaiKunjungan(){
                     '--------------------------\n' +
                     '*Total : ' + rupiah(totalOrder) + '*';
 
-      if (result.fotoUrl && result.fotoUrl !== '-') pesanWA += '\n\n📸 Foto Selfie :\n' + result.fotoUrl;
-      if (result.fileUrl && result.fileUrl !== '-') pesanWA += '\n\n📄 File Order (.txt) :\n' + result.fileUrl;
+      // MENAMBAHKAN LINK FOTO DARI GOOGLE DRIVE
+      if (result.fotoUrl && result.fotoUrl !== '-') {
+        pesanWA += '\n\n📸 *Foto Selfie (Klik Link):*\n' + result.fotoUrl;
+      }
       
       const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
-      currentVisit = null; orders = [];
+      
+      currentVisit = null; 
+      orders = [];
       document.getElementById('activeVisitCard').classList.add('hidden');
       document.getElementById('checkinCard').classList.remove('hidden');
+      
+      // Buka WA
       window.location.href = linkAppWA;
+      
+      // Tombol cadangan jika WA tidak terbuka otomatis
       let btnLama = document.getElementById('btnCadanganWA');
       if(btnLama) btnLama.remove();
       const a = document.createElement('a');
-      a.id = 'btnCadanganWA'; a.href = linkAppWA; a.textContent = '📲 KLIK DI SINI JIKA WA BELUM TERBUKA';
+      a.id = 'btnCadanganWA'; 
+      a.href = linkAppWA; 
+      a.textContent = '📲 KLIK DI SINI JIKA WA BELUM TERBUKA';
       a.style.cssText = 'display:block;background:#25D366;color:#fff;text-align:center;padding:16px;border-radius:10px;font-weight:bold;text-decoration:none;margin-bottom:14px;';
       document.querySelector('.container').prepend(a);
-    } else { toast('❌ Gagal: ' + (result.message || 'Error')); }
-  } catch(e){ toast('❌ Error: ' + e.message); }
+      
+      toast('✅ Laporan berhasil dikirim!');
+    } else { 
+      toast('❌ Gagal: ' + (result.message || 'Error')); 
+    }
+  } catch(e){ 
+    toast('❌ Error: ' + e.message); 
+  }
 }
 </script>
 </body>
