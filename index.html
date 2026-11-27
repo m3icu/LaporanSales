@@ -211,68 +211,77 @@ async function capturePhoto(){
     toast('⏳ Mengambil GPS...');
     await new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition((pos) => {
-        latData = pos.coords.latitude.toFixed(6).trim();
-        lngData = pos.coords.longitude.toFixed(6).trim();
+        latData = pos.coords.latitude.toFixed(6);
+        lngData = pos.coords.longitude.toFixed(6);
         gpsData = latData + ',' + lngData;
         document.getElementById('ci_lokasi').value = gpsData;
         resolve();
-      }, () => resolve(), { enableHighAccuracy: true, timeout: 8000 });
+      }, () => resolve(), { enableHighAccuracy: true, timeout: 10000 });
     });
   }
+  if (!latData || !lngData) { toast('❌ GPS gagal'); return; }
 
-  if (latData && lngData && (!alamatData || alamatData === '-' || alamatData.startsWith('Koordinat:'))) {
-    await terjemahkanAlamat(latData, lngData);
-  }
+  toast('⏳ Menerjemahkan alamat...');
+  await terjemahkanAlamat(latData, lngData);
 
   const v = document.getElementById('video'), c = document.getElementById('canvas');
-  c.width = v.videoWidth || 720; 
-  c.height = v.videoHeight || 960;
   const ctx = c.getContext('2d');
+  
+  // PERBAIKAN: Kecilkan resolusi foto menjadi maksimal 600px lebar
+  const MAX_WIDTH = 600;
+  const scale = Math.min(1, MAX_WIDTH / (v.videoWidth || 720));
+  c.width = (v.videoWidth || 720) * scale;
+  c.height = (v.videoHeight || 960) * scale;
+  
   ctx.drawImage(v, 0, 0, c.width, c.height);
 
-  const boxHeight = 160;
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.68)';
+  // Kotak hitam diperkecil menyesuaikan resolusi baru
+  const boxHeight = 140;
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
   ctx.fillRect(0, c.height - boxHeight, c.width, boxHeight);
-
   ctx.fillStyle = '#FFC107';
-  ctx.fillRect(14, c.height - boxHeight + 14, 5, boxHeight - 28);
+  ctx.fillRect(10, c.height - boxHeight + 10, 4, boxHeight - 20);
 
-  const namaToko = document.getElementById('ci_toko').value || 'Toko Kunjungan';
-  const tglLengkap = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
-  const startX = 28;
-  let y = c.height - boxHeight + 34;
+  const namaToko = document.getElementById('ci_toko').value || '-';
+  const tgl = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
+  const startX = 22;
+  let y = c.height - boxHeight + 28;
 
+  // Nama Toko
   ctx.fillStyle = '#FFC107';
-  ctx.font = 'bold 20px sans-serif';
+  ctx.font = 'bold 16px sans-serif';
   ctx.fillText('📍 ' + namaToko.toUpperCase(), startX, y);
 
-  y += 26;
+  // Tanggal & Jam
+  y += 22;
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 16px sans-serif';
-  ctx.fillText(tglLengkap + '  •  ' + nowStr() + ' WIB', startX, y);
+  ctx.font = 'bold 12px sans-serif';
+  ctx.fillText(tgl + ' • ' + nowStr() + ' WIB', startX, y);
 
-  y += 24;
+  // Alamat
+  y += 18;
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = '15px sans-serif';
-  const baris1 = alamatData.length > 46 ? alamatData.slice(0, 46) : alamatData;
-  const baris2 = alamatData.length > 46 ? alamatData.slice(46, 92) : '';
-  ctx.fillText(baris1, startX, y);
-  if (baris2) {
-    y += 20;
-    ctx.fillText(baris2, startX, y);
-  }
+  ctx.font = '12px sans-serif';
+  const alamat = alamatData || '-';
+  const maxChar = 40;
+  const b1 = alamat.slice(0, maxChar);
+  const b2 = alamat.slice(maxChar, maxChar * 2);
+  ctx.fillText(b1, startX, y);
+  if (b2) { y += 16; ctx.fillText(b2, startX, y); }
 
-  y += 24;
+  // GPS
+  y += 18;
   ctx.fillStyle = '#A5D6A7';
-  ctx.font = 'bold 14px monospace';
-  ctx.fillText('GPS: ' + (gpsData || '-'), startX, y);
+  ctx.font = 'bold 11px monospace';
+  ctx.fillText('GPS: ' + gpsData, startX, y);
 
-  selfieData = c.toDataURL('image/jpeg', 0.4);
-  const p = document.getElementById('selfiePreview'); 
-  p.src = selfieData; 
-  p.classList.remove('hidden');
-  closeCamera(); 
-  toast('📸 Foto & alamat tersimpan');
+  // PERBAIKAN: Turunkan kualitas kompresi ke 0.4 (40%)
+  selfieData = c.toDataURL('image/jpeg', 0.4); 
+  
+  const p = document.getElementById('selfiePreview');
+  p.src = selfieData; p.classList.remove('hidden');
+  closeCamera();
+  toast('📸 Foto siap (ukuran dioptimalkan)');
 }
 
 function closeCamera(){
