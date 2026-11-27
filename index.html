@@ -147,6 +147,13 @@ function loadDaftarToko() {
   script.src = API_URL + '?callback=terimaDataToko&t=' + new Date().getTime(); // t= mencegah cache
   document.body.appendChild(script);
 }
+
+  // Buat tag script yang menunjuk ke API Apps Script
+  const script = document.createElement('script');
+  script.id = 'jsonp-toko';
+  script.src = API_URL + '?callback=terimaDataToko&t=' + new Date().getTime(); // t= mencegah cache
+  document.body.appendChild(script);
+}
 function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
 function nowStr(){ return new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
