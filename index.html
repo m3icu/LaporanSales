@@ -86,7 +86,7 @@
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbwabe63_nOu__gdqF4R0H1esk7sdcwNpqrdPFIdT-U1w7UpZnzRQ_evrY9QMUdaLWVK/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwvtM7mwVUrDOLflLKmqDM15SC6vwIM0yAuTA6zmwVIPC3GZZvPjVhHSYEgkPi7QEdc/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -367,56 +367,18 @@ async function selesaiKunjungan(){
   
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
-  
-  const linkMaps = (currentVisit.lat && currentVisit.lng) 
-    ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
-    : '-';
 
   toast('⏳ Mengirim data...');
 
-  // Siapkan fungsi penampung sementara untuk menerima balasan dari Apps Script
-  window.terimaBalasanSimpan = function(result) {
-    if (result.result === 'success') {
-      let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
-                    'Tanggal : ' + currentVisit.tanggal + '\n' +
-                    'Toko : *' + currentVisit.toko + '*\n' +
-                    'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
-                    '📍 Alamat : ' + currentVisit.alamat + '\n' +
-                    '🗺️ Link GPS : ' + linkMaps + '\n' +
-                    '--------------------------\n' +
-                    '*ORDERAN:*\n' + teksPesanan + '\n' +
-                    '--------------------------\n' +
-                    '*Total : ' + rupiah(totalOrder) + '*';
+  // 1. BUAT FORM TERSEMBUNYI
+  const form = document.createElement('form');
+  form.method = 'POST'; // Gunakan POST
+  form.action = API_URL;
+  form.style.display = 'none';
 
-      if (result.fotoUrl && result.fotoUrl !== '-') {
-        pesanWA += '\n\n📸 *Foto Selfie (Klik Link):*\n' + result.fotoUrl;
-      }
-      
-      const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
-      
-      // Reset form
-      currentVisit = null; 
-      orders = [];
-      document.getElementById('activeVisitCard').classList.add('hidden');
-      document.getElementById('checkinCard').classList.remove('hidden');
-      document.getElementById('ci_lokasi').value = '';
-      document.getElementById('selfiePreview').classList.add('hidden');
-      
-      // Buka WA
-      window.location.href = linkAppWA;
-      toast('✅ Laporan berhasil dikirim!');
-    } else {
-      toast('❌ Gagal: ' + (result.message || 'Error'));
-    }
-    
-    // Hapus script setelah selesai
-    const script = document.getElementById('jsonp-simpan');
-    if(script) script.remove();
-  };
-
-  // Ubah data menjadi URL Query String
-  const params = new URLSearchParams({
-    action: 'simpan',
+  // 2. MASUKKAN DATA KE FORM
+  const dataKirim = {
+    action: 'simpan', // <-- PENTING: Menandai ini adalah aksi simpan
     tanggal: currentVisit.tanggal,
     toko: currentVisit.toko,
     jamMasuk: currentVisit.jamMasuk,
@@ -426,15 +388,20 @@ async function selesaiKunjungan(){
     pesanan: teksPesanan,
     lat: currentVisit.lat || '',
     lng: currentVisit.lng || '',
-    alamat: currentVisit.alamat || '-',
-    callback: 'terimaBalasanSimpan' // <-- Ini memicu JSONP
-  });
+    alamat: currentVisit.alamat || '-'
+  };
 
-  // Buat script JSONP
-  const script = document.createElement('script');
-  script.id = 'jsonp-simpan';
-  script.src = API_URL + '?' + params.toString();
-  document.body.appendChild(script);
+  for (const key in dataKirim) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = key;
+    input.value = dataKirim[key];
+    form.appendChild(input);
+  }
+
+  // 3. TAMBAHKAN FORM KE HALAMAN DAN KIRIM
+  document.body.appendChild(form);
+  form.submit();
 }
 </script>
 </body>
