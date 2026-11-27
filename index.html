@@ -87,7 +87,7 @@
 <div class="toast" id="toast"></div>
 <script>
 // PASTIKAN URL INI ADALAH URL DEPLOYMENT ANDA YANG BERAKHIRAN /exec
-const API_URL = 'https://script.google.com/macros/s/AKfycbzxSV7ed2lgGpJtLvPt0_5qIGY3y5NaHkVbm6a0G6vMLTjOdoGzINIjrBSlGI6pW-cG/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyAbTyl1JuWcVB76TkA0w7bAIH3nKYL-UkS4HE1oyjndCZVx4A-CWq5N_zAWn3ZryYY/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -353,7 +353,29 @@ async function selesaiKunjungan(){
 
   toast('⏳ Mengirim data...');
 
-  // 1. Buat Iframe Tersembunyi (untuk menerima respon)
+  // 1. TAMBAHKAN PENDENGAR PESAN DARI IFRAME
+  // (Ini akan dieksekusi saat iframe selesai memproses data di Google)
+  window.addEventListener('message', function(event) {
+    if (event.data && event.data.type === 'bukaWA') {
+      // Iframe mengirimkan link WhatsApp, saatnya kita buka!
+      toast('✅ Membuka WhatsApp...');
+      
+      // Reset tampilan aplikasi sebelum pindah ke WA
+      currentVisit = null; 
+      orders = [];
+      document.getElementById('activeVisitCard').classList.add('hidden');
+      document.getElementById('checkinCard').classList.remove('hidden');
+      document.getElementById('ci_lokasi').value = '';
+      document.getElementById('selfiePreview').classList.add('hidden');
+
+      // Buka WA dari halaman utama (TIDAK DIBLOKIR HP)
+      window.location.href = event.data.link;
+    } else if (event.data && event.data.type === 'error') {
+      toast('❌ Gagal di server: ' + event.data.msg);
+    }
+  }, { once: true }); // Hanya dengar sekali agar tidak tumpang tindih
+
+  // 2. BUAT IFRAME TERSEMBUNYI
   let iframe = document.getElementById('iframe_kirim');
   if (!iframe) {
     iframe = document.createElement('iframe');
@@ -363,15 +385,15 @@ async function selesaiKunjungan(){
     document.body.appendChild(iframe);
   }
 
-  // 2. Buat Form Tersembunyi
+  // 3. BUAT FORM & MASUKKAN DATA
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = API_URL;
-  form.target = 'iframe_kirim'; // Kirim ke iframe
+  form.target = 'iframe_kirim'; 
   form.style.display = 'none';
 
   const dataKirim = {
-    action: 'simpan', // <-- Tidak dipakai di doPost, tapi aman untuk dibiarkan
+    action: 'simpan', 
     tanggal: currentVisit.tanggal,
     toko: currentVisit.toko,
     jamMasuk: currentVisit.jamMasuk,
@@ -392,21 +414,12 @@ async function selesaiKunjungan(){
     form.appendChild(input);
   }
 
-  // 3. Kirim
+  // 4. KIRIM KE IFRAME
   document.body.appendChild(form);
   form.submit();
-
-  // 4. Reset Tampilan Aplikasi (Kembali ke awal)
-  currentVisit = null; 
-  orders = [];
-  document.getElementById('activeVisitCard').classList.add('hidden');
-  document.getElementById('checkinCard').classList.remove('hidden');
-  document.getElementById('ci_lokasi').value = '';
-  document.getElementById('selfiePreview').classList.add('hidden');
   
-  // Hapus form setelah selesai
-  setTimeout(() => form.remove(), 3000);
-  toast('✅ Data terkirim!');
+  // Hapus form setelah selesai agar bersih
+  setTimeout(() => form.remove(), 5000);
 }
 </script>
 </body>
