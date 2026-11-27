@@ -72,7 +72,7 @@
     </div>
     <label>🕐 Jam Masuk</label>
     <input type="text" id="ci_jam" readonly>
-    <button class="btn-primary" style="padding:20px;font-size:17px;" onclick="checkIn()">✅ SIMPAN CHECK-IN ✅</button>
+    <button class="btn-primary" style="padding:20px;font-size:17px;" onclick="checkIn()">✅ SIMPAN CHECK-IN </button>
   </div>
   <div class="card hidden" id="orderCard">
     <h2>🛒 Input Orderan</h2>
@@ -87,7 +87,7 @@
 <div class="toast" id="toast"></div>
 <script>
 // PASTIKAN URL INI ADALAH URL DEPLOYMENT ANDA YANG BERAKHIRAN /exec
-const API_URL = 'https://script.google.com/macros/s/AKfycbysOne3O6rG_D98pcu_AHocF5x52Z7X8YvXtrLBKaNMYFM22gVUhRKI-g6VRklgZSa5/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyHsDt5f4rcKD-hQfkmgJDNrMYm9fVZnw6yA-WIRGPQGwRqH8mYbnUvZfeEsHzkFfcC/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -350,85 +350,65 @@ async function selesaiKunjungan(){
   
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
+  
+  const linkMaps = (currentVisit.lat && currentVisit.lng) 
+    ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
+    : '-';
+
+  const fd = new FormData();
+  fd.append('tanggal', currentVisit.tanggal); 
+  fd.append('toko', currentVisit.toko); 
+  fd.append('jamMasuk', currentVisit.jamMasuk);
+  fd.append('jamKeluar', jamKeluar); 
+  fd.append('totalOrder', totalOrder.toString()); 
+  fd.append('foto', currentVisit.selfie || ''); 
+  fd.append('pesanan', teksPesanan);
+  fd.append('lat', currentVisit.lat || '');
+  fd.append('lng', currentVisit.lng || '');
+  fd.append('alamat', currentVisit.alamat || '-');
 
   toast('⏳ Mengirim data...');
+  try {
+    // Gunakan fetch POST biasa
+    const res = await fetch(API_URL, { method: 'POST', body: fd });
+    const result = await res.json();
+    
+    if(result.result === 'success'){
+      let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
+                    'Tanggal : ' + currentVisit.tanggal + '\n' +
+                    'Toko : *' + currentVisit.toko + '*\n' +
+                    'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
+                    '📍 Alamat : ' + currentVisit.alamat + '\n' +
+                    '🗺️ Link GPS : ' + linkMaps + '\n' +
+                    '--------------------------\n' +
+                    '*ORDERAN:*\n' + teksPesanan + '\n' +
+                    '--------------------------\n' +
+                    '*Total : ' + rupiah(totalOrder) + '*\n';
 
-  // 1. PENDENGAR PESAN DARI IFRAME
-  const handleMessage = function(event) {
-    if (event.data && event.data.type === 'bukaWA') {
-      toast('✅ Membuka WhatsApp...');
+      if (result.fotoUrl && result.fotoUrl !== '-') pesanWA += '\n📸 *Foto Selfie:*\n' + result.fotoUrl + '\n';
+      if (result.fileUrl && result.fileUrl !== '-') pesanWA += '\n📄 *File Order (.txt):*\n' + result.fileUrl + '\n';
       
-      // TRIK KLIK OTOMATIS (Bypass blokir browser HP)
-      const a = document.createElement('a');
-      a.href = event.data.link;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click(); // Browser menganggap ini klik manual pengguna
+      // Buka WA langsung dari halaman ini
+      const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
       
-      // Hapus elemen setelah diklik
-      setTimeout(() => a.remove(), 1000);
-
-      // Reset tampilan aplikasi
-      currentVisit = null; 
-      orders = [];
+      // Reset Tampilan
+      currentVisit = null; orders = [];
       document.getElementById('activeVisitCard').classList.add('hidden');
       document.getElementById('checkinCard').classList.remove('hidden');
       document.getElementById('ci_lokasi').value = '';
       document.getElementById('selfiePreview').classList.add('hidden');
       
-      // Hapus pendengar agar tidak bentrok di kunjungan berikutnya
-      window.removeEventListener('message', handleMessage);
-    } else if (event.data && event.data.type === 'error') {
-      toast('❌ Gagal: ' + event.data.msg);
-      window.removeEventListener('message', handleMessage);
+      // Tembak WA
+      window.location.href = linkAppWA;
+      toast('✅ Berhasil & Membuka WA!');
+      
+    } else { 
+      toast('❌ Gagal: ' + (result.message || 'Error')); 
     }
-  };
-  
-  window.addEventListener('message', handleMessage);
-
-  // 2. BUAT IFRAME TERSEMBUNYI
-  let iframe = document.getElementById('iframe_kirim');
-  if (!iframe) {
-    iframe = document.createElement('iframe');
-    iframe.name = 'iframe_kirim';
-    iframe.id = 'iframe_kirim';
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
+  } catch(e){ 
+    console.error("Detail Error POST:", e);
+    toast('❌ Gagal terhubung. Coba lagi.'); 
   }
-
-  // 3. BUAT FORM & MASUKKAN DATA
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = API_URL;
-  form.target = 'iframe_kirim'; 
-  form.style.display = 'none';
-
-  const dataKirim = {
-    tanggal: currentVisit.tanggal,
-    toko: currentVisit.toko,
-    jamMasuk: currentVisit.jamMasuk,
-    jamKeluar: jamKeluar,
-    totalOrder: totalOrder.toString(),
-    foto: currentVisit.selfie || '',
-    pesanan: teksPesanan,
-    lat: currentVisit.lat || '',
-    lng: currentVisit.lng || '',
-    alamat: currentVisit.alamat || '-'
-  };
-
-  for (const key in dataKirim) {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = key;
-    input.value = dataKirim[key];
-    form.appendChild(input);
-  }
-
-  // 4. KIRIM
-  document.body.appendChild(form);
-  form.submit();
-  
-  setTimeout(() => form.remove(), 5000);
 }
 </script>
 </body>
