@@ -114,42 +114,39 @@ window.onload = async function() {
   await loadDaftarToko();
 };
 
- async function loadDaftarToko() {
+function loadDaftarToko() {
   const selectToko = document.getElementById('ci_toko');
-  selectToko.innerHTML = '<option value="">⏳ Memuat data...</option>';
+  selectToko.innerHTML = '<option value="">⏳ Memuat data toko...</option>';
   
-  try {
-    const response = await fetch(API_URL, {
-      method: 'GET',
-      redirect: 'follow'
-    });
-    
-    // Jika status bukan 200 (OK), lempar error
-    if (!response.ok) {
-        throw new Error("Status HTTP: " + response.status);
+  // Buat fungsi penampung sementara untuk menerima data dari Apps Script
+  window.terimaDataToko = function(data) {
+    try {
+      if (data.result === 'success' && data.toko) {
+        DAFTAR_TOKO = data.toko;
+        selectToko.innerHTML = '<option value="">-- Pilih Toko dari Daftar --</option>';
+        DAFTAR_TOKO.forEach(t => {
+          let opt = document.createElement('option');
+          opt.value = t.nama; opt.textContent = t.nama;
+          selectToko.appendChild(opt);
+        });
+        toast('✅ ' + DAFTAR_TOKO.length + ' toko dimuat');
+      } else {
+        selectToko.innerHTML = '<option value="">(Gagal memuat data)</option>';
+      }
+    } catch(e) {
+      selectToko.innerHTML = '<option value="">(Error parsing data)</option>';
     }
+    // Hapus script setelah selesai
+    const script = document.getElementById('jsonp-toko');
+    if(script) script.remove();
+  };
 
-    const data = await response.json();
-    
-    if (data.result === 'success' && data.toko) {
-      DAFTAR_TOKO = data.toko;
-      selectToko.innerHTML = '<option value="">-- Pilih Toko dari Daftar --</option>';
-      DAFTAR_TOKO.forEach(t => {
-        let opt = document.createElement('option');
-        opt.value = t.nama; opt.textContent = t.nama;
-        selectToko.appendChild(opt);
-      });
-      toast('✅ ' + DAFTAR_TOKO.length + ' toko dimuat');
-    } else {
-      selectToko.innerHTML = '<option value="">(Format data salah)</option>';
-    }
-  } catch (e) { 
-    // Ini akan menampilkan pesan error asli di layar dan di console
-    console.error("Error asli:", e);
-    selectToko.innerHTML = '<option value="">(Error: ' + e.message + ')</option>'; 
-  }
+  // Buat tag script yang menunjuk ke API Apps Script
+  const script = document.createElement('script');
+  script.id = 'jsonp-toko';
+  script.src = API_URL + '?callback=terimaDataToko&t=' + new Date().getTime(); // t= mencegah cache
+  document.body.appendChild(script);
 }
-
 function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
 function nowStr(){ return new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
