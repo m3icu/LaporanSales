@@ -114,11 +114,23 @@ window.onload = async function() {
   await loadDaftarToko();
 };
 
-async function loadDaftarToko() {
+ async function loadDaftarToko() {
   const selectToko = document.getElementById('ci_toko');
+  selectToko.innerHTML = '<option value="">⏳ Memuat data...</option>';
+  
   try {
-    const response = await fetch(API_URL);
+    const response = await fetch(API_URL, {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    
+    // Jika status bukan 200 (OK), lempar error
+    if (!response.ok) {
+        throw new Error("Status HTTP: " + response.status);
+    }
+
     const data = await response.json();
+    
     if (data.result === 'success' && data.toko) {
       DAFTAR_TOKO = data.toko;
       selectToko.innerHTML = '<option value="">-- Pilih Toko dari Daftar --</option>';
@@ -129,9 +141,13 @@ async function loadDaftarToko() {
       });
       toast('✅ ' + DAFTAR_TOKO.length + ' toko dimuat');
     } else {
-      selectToko.innerHTML = '<option value="">(Gagal memuat toko)</option>';
+      selectToko.innerHTML = '<option value="">(Format data salah)</option>';
     }
-  } catch (e) { selectToko.innerHTML = '<option value="">(Error koneksi)</option>'; }
+  } catch (e) { 
+    // Ini akan menampilkan pesan error asli di layar dan di console
+    console.error("Error asli:", e);
+    selectToko.innerHTML = '<option value="">(Error: ' + e.message + ')</option>'; 
+  }
 }
 
 function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
