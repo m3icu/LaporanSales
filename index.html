@@ -370,15 +370,15 @@ async function selesaiKunjungan(){
 
   toast('⏳ Mengirim data...');
 
-  // 1. BUAT FORM TERSEMBUNYI
+  // Buat form tersembunyi dengan metode GET
   const form = document.createElement('form');
-  form.method = 'POST'; // Gunakan POST
+  form.method = 'POST'; // <-- UBAH JADI GET
   form.action = API_URL;
   form.style.display = 'none';
 
-  // 2. MASUKKAN DATA KE FORM
+  // Masukkan data ke form
   const dataKirim = {
-    action: 'simpan', // <-- PENTING: Menandai ini adalah aksi simpan
+    action: 'simpan', 
     tanggal: currentVisit.tanggal,
     toko: currentVisit.toko,
     jamMasuk: currentVisit.jamMasuk,
@@ -399,7 +399,7 @@ async function selesaiKunjungan(){
     form.appendChild(input);
   }
 
-  // 3. TAMBAHKAN FORM KE HALAMAN DAN KIRIM
+  // Kirim
   document.body.appendChild(form);
   form.submit();
 }
