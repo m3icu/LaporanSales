@@ -52,14 +52,14 @@
   <div class="card" id="checkinCard">
     <h2>🟢 Check-in Kunjungan Toko</h2>
     <label>🏪 Pilih Nama Toko</label>
-    <select id="ci_toko"><option value="">⏳ Memuat daftar toko...⏳ </option></select>
+    <select id="ci_toko"><option value="">⏳ Memuat daftar toko... </option></select>
     <label>📍 Lokasi Koordinat GPS </label>
     <input type="text" id="ci_lokasi" placeholder="Tekan tombol GPS di bawah" readonly>
     <div class="btn-row" style="margin-top:6px;">
       <button class="btn-gray btn-sm" onclick="getGPS()">📍 Ambil GPS & Deteksi</button>
       <button class="btn-orange btn-sm" onclick="pakaiTokoManual()">✏️ Ambil GPS Manual</button>
     </div>
-    <label>📸 Foto Selfie di Toko (wajib)</label>
+    <label>📸 Foto Selfie di Toko (wajib)📸 </label>
     <button class="btn-gray" onclick="openCamera()" id="btnOpenCam">📷 Buka Kamera</button>
     <video id="video" autoplay playsinline class="hidden"></video>
     <canvas id="canvas" class="hidden"></canvas>
@@ -87,7 +87,7 @@
 <div class="toast" id="toast"></div>
 <script>
 // PASTIKAN URL INI ADALAH URL DEPLOYMENT ANDA YANG BERAKHIRAN /exec
-const API_URL = 'https://script.google.com/macros/s/AKfycbw-oCuH4A4IMAHzinujb5Gh3XOkXVP6x5QWoM-o0Q2b3RQ4LYQkokTu1ulYx31qaXWw/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyH1imAJLaCtc5KkXarJZ9Zo1S0TGOo6kYPAcS8GFFwSXfcqoheoUirfrME-3_bnCHL/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -376,11 +376,14 @@ async function selesaiKunjungan(){
   fd.append('alamat', currentVisit.alamat || '-');
 
   toast('⏳ Mengirim data...');
+  
   try {
+    // TRIK ANTI-CACHE: Tambahkan ?t=waktu saat ini
     const res = await fetch(API_URL + '?t=' + Date.now(), { 
       method: 'POST', 
       body: fd 
     });
+    
     const result = await res.json();
     
     if(result.result === 'success'){
