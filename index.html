@@ -86,7 +86,7 @@
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbyc9K26QqwHwqMfn2C4cDsI9HqXCBUoG-qm9cgGzM6U-P7Amo5rD3Q-7rNngMYTguY/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzwVdGdG84sUy4qzOl9OB56nMIbO4cQ1wpspwT_ZfkUrXYRkCIWyR8x3taK7xhvvovY/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -97,10 +97,12 @@ function terjemahkanAlamat(lat, lng) {
     // Buat fungsi penampung sementara untuk menerima alamat dari Google
     window.terimaAlamat = function(data) {
       if (data && data.alamat) {
+        // Hapus kata ", Indonesia" di paling belakang agar lebih ringkas
         alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
       } else {
         alamatData = `Koordinat: ${lat}, ${lng}`;
       }
+      
       // Hapus script setelah selesai
       const script = document.getElementById('jsonp-alamat');
       if(script) script.remove();
@@ -113,7 +115,7 @@ function terjemahkanAlamat(lat, lng) {
     script.src = `${API_URL}?action=geocode&lat=${lat}&lng=${lng}&callback=terimaAlamat&t=${new Date().getTime()}`;
     document.body.appendChild(script);
     
-    // Timeout jika server lambat merespons (misal 5 detik)
+    // Timeout jika server lambat merespons
     setTimeout(() => {
       if (alamatData.startsWith('Koordinat:')) resolve();
     }, 5000);
@@ -370,13 +372,13 @@ async function selesaiKunjungan(){
 
   toast('⏳ Mengirim data...');
 
-  // Buat form tersembunyi dengan metode GET
+  // 1. BUAT FORM TERSEMBUNYI
   const form = document.createElement('form');
-  form.method = 'POST'; // <-- UBAH JADI GET
+  form.method = 'POST'; 
   form.action = API_URL;
+  form.target = 'iframe_pengiriman'; // Kirim ke iframe
   form.style.display = 'none';
 
-  // Masukkan data ke form
   const dataKirim = {
     action: 'simpan', 
     tanggal: currentVisit.tanggal,
@@ -399,7 +401,47 @@ async function selesaiKunjungan(){
     form.appendChild(input);
   }
 
-  // Kirim
+  // 2. SIAPKAN IFRAME UNTUK MENERIMA RESPON
+  let iframe = document.getElementById('iframe_pengiriman');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.name = 'iframe_pengiriman';
+    iframe.id = 'iframe_pengiriman';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+  }
+
+  // 3. FUNGSI YANG BERJALAN SETELAH IFRAME SELESAI DIMUAT
+  iframe.onload = function() {
+    try {
+      // Ambil URL WhatsApp dari dalam iframe (tag <p id="urlWA">)
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+      const urlWA = iframeDoc.getElementById('urlWA').innerText;
+      
+      if (urlWA && urlWA.includes('whatsapp://')) {
+        toast('✅ Data terkirim! Membuka WA...');
+        
+        // Reset tampilan aplikasi
+        currentVisit = null; 
+        orders = [];
+        document.getElementById('activeVisitCard').classList.add('hidden');
+        document.getElementById('checkinCard').classList.remove('hidden');
+        document.getElementById('ci_lokasi').value = '';
+        document.getElementById('selfiePreview').classList.add('hidden');
+
+        // Buka WhatsApp dari halaman utama (bukan dari iframe)
+        window.location.href = urlWA;
+        
+        // Hapus iframe setelah selesai
+        setTimeout(() => { iframe.remove(); }, 2000);
+      }
+    } catch(e) {
+      console.error("Gagal membaca respon iframe", e);
+      toast('❌ Gagal memproses WA.');
+    }
+  };
+
+  // 4. KIRIM FORM
   document.body.appendChild(form);
   form.submit();
 }
