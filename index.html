@@ -250,7 +250,7 @@ async function capturePhoto(){
   ctx.font = 'bold 14px monospace';
   ctx.fillText('GPS: ' + (gpsData || '-'), startX, y);
 
-  selfieData = c.toDataURL('image/jpeg', 0.78);
+  selfieData = c.toDataURL('image/jpeg', 0.5);
   const p = document.getElementById('selfiePreview'); 
   p.src = selfieData; 
   p.classList.remove('hidden');
