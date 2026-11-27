@@ -267,7 +267,7 @@ async function capturePhoto(){
   ctx.font = 'bold 14px monospace';
   ctx.fillText('GPS: ' + (gpsData || '-'), startX, y);
 
-  selfieData = c.toDataURL('image/jpeg', 0.5);
+  selfieData = c.toDataURL('image/jpeg', 0.4);
   const p = document.getElementById('selfiePreview'); 
   p.src = selfieData; 
   p.classList.remove('hidden');
@@ -405,7 +405,7 @@ async function selesaiKunjungan(){
     }
   } catch(e){ 
     console.error("Detail Error POST:", e);
-    toast('❌ Error Jaringan: Gagal mengirim ke Google.'); 
+    toast('❌ Error: ' + e.message); 
   }
 }
 </script>
