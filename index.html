@@ -92,34 +92,18 @@ const NOMOR_WA_ADMIN = '6289657160578';
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
 let latData = '', lngData = '', alamatData = '-';
 
-function terjemahkanAlamat(lat, lng) {
-  return new Promise((resolve) => {
-    // Buat fungsi penampung sementara untuk menerima alamat dari Google
-    window.terimaAlamat = function(data) {
-      if (data && data.alamat) {
-        // Hapus kata ", Indonesia" di paling belakang agar lebih ringkas
-        alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
-      } else {
-        alamatData = `Koordinat: ${lat}, ${lng}`;
-      }
-      
-      // Hapus script setelah selesai
-      const script = document.getElementById('jsonp-alamat');
-      if(script) script.remove();
-      resolve();
-    };
-
-    // Buat tag script untuk memanggil Apps Script menggunakan JSONP
-    const script = document.createElement('script');
-    script.id = 'jsonp-alamat';
-    script.src = `${API_URL}?action=geocode&lat=${lat}&lng=${lng}&callback=terimaAlamat&t=${new Date().getTime()}`;
-    document.body.appendChild(script);
-    
-    // Timeout jika server lambat merespons
-    setTimeout(() => {
-      if (alamatData.startsWith('Koordinat:')) resolve();
-    }, 5000);
-  });
+async function terjemahkanAlamat(lat, lng) {
+  try {
+    const res = await fetch(`${API_URL}?action=geocode&lat=${lat}&lng=${lng}`);
+    const data = await res.json();
+    if (data && data.alamat) {
+      alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
+    } else {
+      alamatData = `Koordinat: ${lat}, ${lng}`;
+    }
+  } catch (e) {
+    alamatData = `Koordinat: ${lat}, ${lng}`;
+  }
 }
 
 window.onload = async function() {
@@ -241,50 +225,39 @@ async function capturePhoto(){
   const ctx = c.getContext('2d');
   ctx.drawImage(v, 0, 0, c.width, c.height);
 
-  // Kotak hitam diperbesar sedikit (dari 170 ke 195) agar muat teks alamat
-  const boxHeight = 195;
-  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  const boxHeight = 170;
+  ctx.fillStyle = 'rgba(0,0,0,0.68)';
   ctx.fillRect(0, c.height - boxHeight, c.width, boxHeight);
-  
-  // Garis kuning di kiri
   ctx.fillStyle = '#FFC107';
   ctx.fillRect(14, c.height - boxHeight + 14, 5, boxHeight - 28);
 
   const namaToko = document.getElementById('ci_toko').value || '-';
   const tgl = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-  const startX = 30;
-  let y = c.height - boxHeight + 35; // Titik awal teks
+  const startX = 28;
+  let y = c.height - boxHeight + 32;
 
-  // 1. Nama Toko
   ctx.fillStyle = '#FFC107';
-  ctx.font = 'bold 18px sans-serif';
+  ctx.font = 'bold 19px sans-serif';
   ctx.fillText('📍 ' + namaToko.toUpperCase(), startX, y);
 
-  // 2. Tanggal & Jam
-  y += 25;
+  y += 26;
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 14px sans-serif';
+  ctx.font = 'bold 15px sans-serif';
   ctx.fillText(tgl + ' • ' + nowStr() + ' WIB', startX, y);
 
-  // 3. Alamat (Wrap 2 Baris)
-  y += 22;
+  y += 24;
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = '13px sans-serif';
+  ctx.font = '14px sans-serif';
   const alamat = alamatData || '-';
-  const maxChar = 46;
+  const maxChar = 44;
   const b1 = alamat.slice(0, maxChar);
   const b2 = alamat.slice(maxChar, maxChar * 2);
   ctx.fillText(b1, startX, y);
-  
-  if (b2) { 
-    y += 18; 
-    ctx.fillText(b2, startX, y); 
-  }
+  if (b2) { y += 20; ctx.fillText(b2, startX, y); }
 
-  // 4. GPS
-  y += 22;
-  ctx.fillStyle = '#A5D6A7'; // Warna hijau muda
-  ctx.font = 'bold 12px monospace';
+  y += 24;
+  ctx.fillStyle = '#A5D6A7';
+  ctx.font = 'bold 13px monospace';
   ctx.fillText('GPS: ' + gpsData, startX, y);
 
   selfieData = c.toDataURL('image/jpeg', 0.78);
@@ -363,24 +336,28 @@ function saveOrder(){
   document.getElementById('av_order').textContent = rupiah(total);
   toast('✅ Orderan ditambah'); hideForms();
 }
+
 async function selesaiKunjungan(){
   if(!currentVisit || !confirm('Kirim laporan ke kantor & WA?')) return;
   
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
+  
+  const linkMaps = (currentVisit.lat && currentVisit.lng) 
+    ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
+    : '-';
 
-  toast('⏳ Mengirim data & membuka tab baru...');
+  toast('⏳ Mengirim data...');
 
-  // Buat form tersembunyi
+  // 1. BUAT FORM TERSEMBUNYI UNTUK MENGIRIM DATA (BEBAS CORS)
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = API_URL;
-  form.target = '_blank'; // BUKA DI TAB BARU
+  form.target = 'iframe_pengiriman'; // Targetkan ke iframe tersembunyi
   form.style.display = 'none';
 
-  // Masukkan data
+  // 2. MASUKKAN SEMUA DATA KE DALAM FORM
   const dataKirim = {
-    action: 'simpan', 
     tanggal: currentVisit.tanggal,
     toko: currentVisit.toko,
     jamMasuk: currentVisit.jamMasuk,
@@ -401,20 +378,55 @@ async function selesaiKunjungan(){
     form.appendChild(input);
   }
 
-  // Kirim Form
+  // 3. BUAT IFRAME TERSEMBUNYI (UNTUK MENANGKAP RESPON DARI APPS SCRIPT)
+  let iframe = document.getElementById('iframe_pengiriman');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.name = 'iframe_pengiriman';
+    iframe.id = 'iframe_pengiriman';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+  }
+
+  // 4. KIRIM FORM
   document.body.appendChild(form);
   form.submit();
 
-  // Reset tampilan aplikasi (kembali ke awal)
-  currentVisit = null; 
-  orders = [];
-  document.getElementById('activeVisitCard').classList.add('hidden');
-  document.getElementById('checkinCard').classList.remove('hidden');
-  document.getElementById('ci_lokasi').value = '';
-  document.getElementById('selfiePreview').classList.add('hidden');
-  
-  // Hapus form dari DOM setelah beberapa detik
-  setTimeout(() => form.remove(), 5000);
+  // 5. TUNGGU PROSES SELESAI, LALU BUKA WHATSAPP
+  // Kita tunggu 4 detik agar Apps Script selesai memproses gambar & simpan ke Sheet
+  setTimeout(() => {
+    let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
+                  'Tanggal : ' + currentVisit.tanggal + '\n' +
+                  'Toko : *' + currentVisit.toko + '*\n' +
+                  'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
+                  '📍 Alamat : ' + currentVisit.alamat + '\n' +
+                  '🗺️ Link GPS : ' + linkMaps + '\n' +
+                  '--------------------------\n' +
+                  '*ORDERAN:*\n' + teksPesanan + '\n' +
+                  '--------------------------\n' +
+                  '*Total : ' + rupiah(totalOrder) + '*';
+
+    // Catatan: Karena kita tidak menerima balasan JSON, link foto tidak bisa ditambahkan otomatis di sini.
+    // Tapi data tetap masuk ke Google Sheets.
+    
+    const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
+    
+    // Reset tampilan
+    currentVisit = null; 
+    orders = [];
+    document.getElementById('activeVisitCard').classList.add('hidden');
+    document.getElementById('checkinCard').classList.remove('hidden');
+    document.getElementById('ci_lokasi').value = '';
+    document.getElementById('selfiePreview').classList.add('hidden');
+    
+    // Buka WhatsApp
+    window.location.href = linkAppWA;
+    
+    toast('✅ Laporan berhasil dikirim!');
+    
+    // Hapus form dan iframe setelah selesai
+    setTimeout(() => { form.remove(); iframe.remove(); }, 2000);
+  }, 4000); // Waktu tunggu 4000 ms (4 detik)
 }
 </script>
 </body>
