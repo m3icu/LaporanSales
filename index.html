@@ -87,24 +87,30 @@
 <div class="toast" id="toast"></div>
 <script>
 // PASTIKAN URL INI ADALAH URL DEPLOYMENT ANDA YANG BERAKHIRAN /exec
-const API_URL = 'https://script.google.com/macros/s/AKfycbypiQOHtJP2WKhmbDaAz8vJ9t8-RAsR4pNlMPHbTzXLxBtBNSq_BWraD84XBS85bBvZ/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwgnuOzvqru-y_2Qo1Hf2zSH7jeK4LGza-C7UJQ3_lMuaPINfmERhnyg9JuY-L4rfe8/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
 let latData = '', lngData = '', alamatData = '-';
 
-async function terjemahkanAlamat(lat, lng) {
-  try {
-    const res = await fetch(`${API_URL}?action=geocode&lat=${lat}&lng=${lng}`);
-    const data = await res.json();
-    if (data && data.alamat) {
-      alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
-    } else {
-      alamatData = `Koordinat: ${lat}, ${lng}`;
-    }
-  } catch (e) {
-    alamatData = `Koordinat: ${lat}, ${lng}`;
-  }
+function terjemahkanAlamat(lat, lng) {
+  return new Promise((resolve) => {
+    window.terimaAlamat = function(data) {
+      if (data && data.alamat) {
+        alamatData = data.alamat.replace(/,\s*Indonesia$/i, '').trim();
+      } else {
+        alamatData = `Koordinat: ${lat}, ${lng}`;
+      }
+      const script = document.getElementById('jsonp-alamat');
+      if(script) script.remove();
+      resolve();
+    };
+    const script = document.createElement('script');
+    script.id = 'jsonp-alamat';
+    script.src = `${API_URL}?action=geocode&lat=${lat}&lng=${lng}&callback=terimaAlamat&t=${new Date().getTime()}`;
+    document.body.appendChild(script);
+    setTimeout(() => { if (alamatData.startsWith('Koordinat:')) resolve(); }, 4000);
+  });
 }
 
 window.onload = async function() {
@@ -113,24 +119,35 @@ window.onload = async function() {
   await loadDaftarToko();
 };
 
-async function loadDaftarToko() {
+function loadDaftarToko() {
   const selectToko = document.getElementById('ci_toko');
-  try {
-    const response = await fetch(API_URL);
-    const data = await response.json();
-    if (data.result === 'success' && data.toko) {
-      DAFTAR_TOKO = data.toko;
-      selectToko.innerHTML = '<option value="">-- Pilih Toko dari Daftar --</option>';
-      DAFTAR_TOKO.forEach(t => {
-        let opt = document.createElement('option');
-        opt.value = t.nama; opt.textContent = t.nama;
-        selectToko.appendChild(opt);
-      });
-      toast('✅ ' + DAFTAR_TOKO.length + ' toko dimuat');
-    } else {
-      selectToko.innerHTML = '<option value="">(Gagal memuat toko)</option>';
+  selectToko.innerHTML = '<option value="">⏳ Memuat data toko...</option>';
+  
+  window.terimaDataToko = function(data) {
+    try {
+      if (data.result === 'success' && data.toko) {
+        DAFTAR_TOKO = data.toko;
+        selectToko.innerHTML = '<option value="">-- Pilih Toko dari Daftar --</option>';
+        DAFTAR_TOKO.forEach(t => {
+          let opt = document.createElement('option');
+          opt.value = t.nama; opt.textContent = t.nama;
+          selectToko.appendChild(opt);
+        });
+        toast('✅ ' + DAFTAR_TOKO.length + ' toko dimuat');
+      } else {
+        selectToko.innerHTML = '<option value="">(Gagal memuat data)</option>';
+      }
+    } catch(e) {
+      selectToko.innerHTML = '<option value="">(Error parsing data)</option>';
     }
-  } catch (e) { selectToko.innerHTML = '<option value="">(Error koneksi)</option>'; }
+    const script = document.getElementById('jsonp-toko');
+    if(script) script.remove();
+  };
+
+  const script = document.createElement('script');
+  script.id = 'jsonp-toko';
+  script.src = API_URL + '?callback=terimaDataToko&t=' + new Date().getTime();
+  document.body.appendChild(script);
 }
 
 function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
