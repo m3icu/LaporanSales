@@ -347,61 +347,86 @@ async function selesaiKunjungan(){
     ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
     : '-';
 
-  const formData = new FormData();
-  formData.append('tanggal', currentVisit.tanggal); 
-  formData.append('toko', currentVisit.toko); 
-  formData.append('jamMasuk', currentVisit.jamMasuk);
-  formData.append('jamKeluar', jamKeluar); 
-  formData.append('totalOrder', totalOrder.toString()); 
-  formData.append('foto', currentVisit.selfie || '');
-  formData.append('pesanan', teksPesanan);
-  formData.append('lat', currentVisit.lat || '');
-  formData.append('lng', currentVisit.lng || '');
-  formData.append('alamat', currentVisit.alamat || '-');
-
   toast('⏳ Mengirim data...');
 
-  try {
-    const res = await fetch(API_URL, { 
-      method: 'POST', 
-      body: formData 
-    });
-    
-    const result = await res.json();
-    
-    if(result.result === 'success'){
-      let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
-                    'Tanggal : ' + currentVisit.tanggal + '\n' +
-                    'Toko : *' + currentVisit.toko + '*\n' +
-                    'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
-                    '📍 Alamat : ' + currentVisit.alamat + '\n' +
-                    '🗺️ Link GPS : ' + linkMaps + '\n' +
-                    '--------------------------\n' +
-                    '*ORDERAN:*\n' + teksPesanan + '\n' +
-                    '--------------------------\n' +
-                    '*Total : ' + rupiah(totalOrder) + '*';
+  // 1. BUAT FORM TERSEMBUNYI UNTUK MENGIRIM DATA (BEBAS CORS)
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = API_URL;
+  form.target = 'iframe_pengiriman'; // Targetkan ke iframe tersembunyi
+  form.style.display = 'none';
 
-      if (result.fotoUrl && result.fotoUrl !== '-') {
-        pesanWA += '\n\n📸 *Foto Selfie (Klik Link):*\n' + result.fotoUrl;
-      }
-      
-      const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
-      
-      currentVisit = null; 
-      orders = [];
-      document.getElementById('activeVisitCard').classList.add('hidden');
-      document.getElementById('checkinCard').classList.remove('hidden');
-      
-      window.location.href = linkAppWA;
-      
-      toast('✅ Laporan berhasil dikirim!');
-    } else { 
-      toast('❌ Gagal: ' + (result.message || 'Error')); 
-    }
-  } catch(e){ 
-    console.error("Detail Error POST:", e);
-    toast('❌ Error jaringan saat mengirim.'); 
+  // 2. MASUKKAN SEMUA DATA KE DALAM FORM
+  const dataKirim = {
+    tanggal: currentVisit.tanggal,
+    toko: currentVisit.toko,
+    jamMasuk: currentVisit.jamMasuk,
+    jamKeluar: jamKeluar,
+    totalOrder: totalOrder.toString(),
+    foto: currentVisit.selfie || '',
+    pesanan: teksPesanan,
+    lat: currentVisit.lat || '',
+    lng: currentVisit.lng || '',
+    alamat: currentVisit.alamat || '-'
+  };
+
+  for (const key in dataKirim) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = key;
+    input.value = dataKirim[key];
+    form.appendChild(input);
   }
+
+  // 3. BUAT IFRAME TERSEMBUNYI (UNTUK MENANGKAP RESPON DARI APPS SCRIPT)
+  let iframe = document.getElementById('iframe_pengiriman');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.name = 'iframe_pengiriman';
+    iframe.id = 'iframe_pengiriman';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+  }
+
+  // 4. KIRIM FORM
+  document.body.appendChild(form);
+  form.submit();
+
+  // 5. TUNGGU PROSES SELESAI, LALU BUKA WHATSAPP
+  // Kita tunggu 4 detik agar Apps Script selesai memproses gambar & simpan ke Sheet
+  setTimeout(() => {
+    let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
+                  'Tanggal : ' + currentVisit.tanggal + '\n' +
+                  'Toko : *' + currentVisit.toko + '*\n' +
+                  'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
+                  '📍 Alamat : ' + currentVisit.alamat + '\n' +
+                  '🗺️ Link GPS : ' + linkMaps + '\n' +
+                  '--------------------------\n' +
+                  '*ORDERAN:*\n' + teksPesanan + '\n' +
+                  '--------------------------\n' +
+                  '*Total : ' + rupiah(totalOrder) + '*';
+
+    // Catatan: Karena kita tidak menerima balasan JSON, link foto tidak bisa ditambahkan otomatis di sini.
+    // Tapi data tetap masuk ke Google Sheets.
+    
+    const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
+    
+    // Reset tampilan
+    currentVisit = null; 
+    orders = [];
+    document.getElementById('activeVisitCard').classList.add('hidden');
+    document.getElementById('checkinCard').classList.remove('hidden');
+    document.getElementById('ci_lokasi').value = '';
+    document.getElementById('selfiePreview').classList.add('hidden');
+    
+    // Buka WhatsApp
+    window.location.href = linkAppWA;
+    
+    toast('✅ Laporan berhasil dikirim!');
+    
+    // Hapus form dan iframe setelah selesai
+    setTimeout(() => { form.remove(); iframe.remove(); }, 2000);
+  }, 4000); // Waktu tunggu 4000 ms (4 detik)
 }
 </script>
 </body>
