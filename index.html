@@ -86,7 +86,7 @@
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbwvtM7mwVUrDOLflLKmqDM15SC6vwIM0yAuTA6zmwVIPC3GZZvPjVhHSYEgkPi7QEdc/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbws9GzIihenu2V0v2L_sR4p0i7lgK4fVgkR1YSSfjwAqEmoLbQ1kLraEPLMrP2LLoBV/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -372,7 +372,7 @@ async function selesaiKunjungan(){
 
   // Buat form tersembunyi dengan metode GET
   const form = document.createElement('form');
-  form.method = 'GET'; // <-- UBAH JADI GET
+  form.method = 'POST'; // <-- UBAH JADI GET
   form.action = API_URL;
   form.style.display = 'none';
 
