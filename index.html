@@ -87,7 +87,7 @@
 <div class="toast" id="toast"></div>
 <script>
 // PASTIKAN URL INI ADALAH URL DEPLOYMENT ANDA YANG BERAKHIRAN /exec
-const API_URL = 'https://script.google.com/macros/s/AKfycbwgnuOzvqru-y_2Qo1Hf2zSH7jeK4LGza-C7UJQ3_lMuaPINfmERhnyg9JuY-L4rfe8/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzxSV7ed2lgGpJtLvPt0_5qIGY3y5NaHkVbm6a0G6vMLTjOdoGzINIjrBSlGI6pW-cG/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -350,63 +350,63 @@ async function selesaiKunjungan(){
   
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
-  
-  // PERBAIKAN: Link Google Maps yang valid
-  const linkMaps = (currentVisit.lat && currentVisit.lng) 
-    ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
-    : '-';
-
-  const fd = new FormData();
-  fd.append('tanggal', currentVisit.tanggal); 
-  fd.append('toko', currentVisit.toko); 
-  fd.append('jamMasuk', currentVisit.jamMasuk);
-  fd.append('jamKeluar', jamKeluar); 
-  fd.append('totalOrder', totalOrder.toString()); 
-  fd.append('foto', currentVisit.selfie || ''); 
-  fd.append('pesanan', teksPesanan);
-  fd.append('lat', currentVisit.lat || '');
-  fd.append('lng', currentVisit.lng || '');
-  fd.append('alamat', currentVisit.alamat || '-');
 
   toast('⏳ Mengirim data...');
-  try {
-    const res = await fetch(API_URL, { method: 'POST', body: fd });
-    const result = await res.json();
-    
-    if(result.result === 'success'){
-      let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
-                    'Tanggal : ' + currentVisit.tanggal + '\n' +
-                    'Toko : *' + currentVisit.toko + '*\n' +
-                    'Jam : ' + currentVisit.jamMasuk + ' - ' + jamKeluar + '\n' +
-                    '📍 Alamat : ' + currentVisit.alamat + '\n' +
-                    '🗺️ Link GPS : ' + linkMaps + '\n' +
-                    '--------------------------\n' +
-                    '*ORDERAN:*\n' + teksPesanan + '\n' +
-                    '--------------------------\n' +
-                    '*Total : ' + rupiah(totalOrder) + '*';
 
-      if (result.fotoUrl && result.fotoUrl !== '-') pesanWA += '\n\n📸 Foto Selfie :\n' + result.fotoUrl;
-      if (result.fileUrl && result.fileUrl !== '-') pesanWA += '\n\n📄 File Order (.txt) :\n' + result.fileUrl;
-      
-      // Tembak langsung ke WA tanpa pindah layar
-      const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
-      
-      currentVisit = null; orders = [];
-      document.getElementById('activeVisitCard').classList.add('hidden');
-      document.getElementById('checkinCard').classList.remove('hidden');
-      document.getElementById('ci_lokasi').value = '';
-      document.getElementById('selfiePreview').classList.add('hidden');
-      
-      window.location.href = linkAppWA;
-      toast('✅ Berhasil & Membuka WA!');
-      
-    } else { 
-      toast('❌ Gagal: ' + (result.message || 'Error')); 
-    }
-  } catch(e){ 
-    console.error("Detail Error POST:", e);
-    toast('❌ Error: ' + e.message); 
+  // 1. Buat Iframe Tersembunyi (untuk menerima respon)
+  let iframe = document.getElementById('iframe_kirim');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.name = 'iframe_kirim';
+    iframe.id = 'iframe_kirim';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
   }
+
+  // 2. Buat Form Tersembunyi
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = API_URL;
+  form.target = 'iframe_kirim'; // Kirim ke iframe
+  form.style.display = 'none';
+
+  const dataKirim = {
+    action: 'simpan', // <-- Tidak dipakai di doPost, tapi aman untuk dibiarkan
+    tanggal: currentVisit.tanggal,
+    toko: currentVisit.toko,
+    jamMasuk: currentVisit.jamMasuk,
+    jamKeluar: jamKeluar,
+    totalOrder: totalOrder.toString(),
+    foto: currentVisit.selfie || '',
+    pesanan: teksPesanan,
+    lat: currentVisit.lat || '',
+    lng: currentVisit.lng || '',
+    alamat: currentVisit.alamat || '-'
+  };
+
+  for (const key in dataKirim) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = key;
+    input.value = dataKirim[key];
+    form.appendChild(input);
+  }
+
+  // 3. Kirim
+  document.body.appendChild(form);
+  form.submit();
+
+  // 4. Reset Tampilan Aplikasi (Kembali ke awal)
+  currentVisit = null; 
+  orders = [];
+  document.getElementById('activeVisitCard').classList.add('hidden');
+  document.getElementById('checkinCard').classList.remove('hidden');
+  document.getElementById('ci_lokasi').value = '';
+  document.getElementById('selfiePreview').classList.add('hidden');
+  
+  // Hapus form setelah selesai
+  setTimeout(() => form.remove(), 3000);
+  toast('✅ Data terkirim!');
 }
 </script>
 </body>
