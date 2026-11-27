@@ -87,7 +87,7 @@
 <div class="toast" id="toast"></div>
 <script>
 // PASTIKAN URL INI ADALAH URL DEPLOYMENT ANDA YANG BERAKHIRAN /exec
-const API_URL = 'https://script.google.com/macros/s/AKfycbyHsDt5f4rcKD-hQfkmgJDNrMYm9fVZnw6yA-WIRGPQGwRqH8mYbnUvZfeEsHzkFfcC/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxu4n4SMkbexEjWGnWQ44-yS105QR_-8LOw-QcZB49qA74y_XETYWCSx6yOtewmLYMF/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -350,30 +350,14 @@ async function selesaiKunjungan(){
   
   const totalOrder = orders.reduce((s,i) => s + i.subtotal, 0), jamKeluar = nowStr();
   let teksPesanan = orders.length > 0 ? orders.map((item, idx) => (idx + 1) + '. ' + item.nama + ' | ' + item.qty + ' ' + item.satuan + ' @ ' + rupiah(item.harga) + ' = ' + rupiah(item.subtotal)).join('\n') : '-';
-  
-  const linkMaps = (currentVisit.lat && currentVisit.lng) 
-    ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` 
-    : '-';
-
-  const fd = new FormData();
-  fd.append('tanggal', currentVisit.tanggal); 
-  fd.append('toko', currentVisit.toko); 
-  fd.append('jamMasuk', currentVisit.jamMasuk);
-  fd.append('jamKeluar', jamKeluar); 
-  fd.append('totalOrder', totalOrder.toString()); 
-  fd.append('foto', currentVisit.selfie || ''); 
-  fd.append('pesanan', teksPesanan);
-  fd.append('lat', currentVisit.lat || '');
-  fd.append('lng', currentVisit.lng || '');
-  fd.append('alamat', currentVisit.alamat || '-');
+  const linkMaps = (currentVisit.lat && currentVisit.lng) ? `https://www.google.com/maps?q=${currentVisit.lat},${currentVisit.lng}` : '-';
 
   toast('⏳ Mengirim data...');
-  try {
-    // Gunakan fetch POST biasa
-    const res = await fetch(API_URL, { method: 'POST', body: fd });
-    const result = await res.json();
-    
-    if(result.result === 'success'){
+
+  // 1. Siapkan fungsi penampung balasan dari Google
+  window.terimaBalasanSimpan = function(result) {
+    if (result.result === 'success') {
+      
       let pesanWA = '*LAPORAN KUNJUNGAN & ORDER*\n' +
                     'Tanggal : ' + currentVisit.tanggal + '\n' +
                     'Toko : *' + currentVisit.toko + '*\n' +
@@ -388,7 +372,7 @@ async function selesaiKunjungan(){
       if (result.fotoUrl && result.fotoUrl !== '-') pesanWA += '\n📸 *Foto Selfie:*\n' + result.fotoUrl + '\n';
       if (result.fileUrl && result.fileUrl !== '-') pesanWA += '\n📄 *File Order (.txt):*\n' + result.fileUrl + '\n';
       
-      // Buka WA langsung dari halaman ini
+      // TRIK KLIK OTOMATIS UNTUK MEMBUKA WA
       const linkAppWA = 'whatsapp://send?phone=' + NOMOR_WA_ADMIN + '&text=' + encodeURIComponent(pesanWA);
       
       // Reset Tampilan
@@ -398,17 +382,45 @@ async function selesaiKunjungan(){
       document.getElementById('ci_lokasi').value = '';
       document.getElementById('selfiePreview').classList.add('hidden');
       
-      // Tembak WA
-      window.location.href = linkAppWA;
-      toast('✅ Berhasil & Membuka WA!');
+      // Buat elemen <a> gaib dan klik otomatis
+      const a = document.createElement('a');
+      a.href = linkAppWA;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
       
-    } else { 
-      toast('❌ Gagal: ' + (result.message || 'Error')); 
+      toast('✅ Berhasil & Membuka WA!');
+      setTimeout(() => a.remove(), 1000);
+      
+    } else {
+      toast('❌ Gagal: ' + (result.message || 'Error'));
     }
-  } catch(e){ 
-    console.error("Detail Error POST:", e);
-    toast('❌ Gagal terhubung. Coba lagi.'); 
-  }
+    
+    const script = document.getElementById('jsonp-simpan');
+    if(script) script.remove();
+  };
+
+  // 2. Siapkan data untuk URL (JSONP)
+  const params = new URLSearchParams({
+    action: 'simpan',
+    tanggal: currentVisit.tanggal,
+    toko: currentVisit.toko,
+    jamMasuk: currentVisit.jamMasuk,
+    jamKeluar: jamKeluar,
+    totalOrder: totalOrder.toString(),
+    foto: currentVisit.selfie || '',
+    pesanan: teksPesanan,
+    lat: currentVisit.lat || '',
+    lng: currentVisit.lng || '',
+    alamat: currentVisit.alamat || '-',
+    callback: 'terimaBalasanSimpan'
+  });
+
+  // 3. Kirim via tag <script> (Tembus CORS)
+  const script = document.createElement('script');
+  script.id = 'jsonp-simpan';
+  script.src = API_URL + '?' + params.toString();
+  document.body.appendChild(script);
 }
 </script>
 </body>
