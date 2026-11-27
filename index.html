@@ -87,7 +87,7 @@
 <div class="toast" id="toast"></div>
 <script>
 // PASTIKAN URL INI ADALAH URL DEPLOYMENT ANDA YANG BERAKHIRAN /exec
-const API_URL = 'https://script.google.com/macros/s/AKfycbyAbTyl1JuWcVB76TkA0w7bAIH3nKYL-UkS4HE1oyjndCZVx4A-CWq5N_zAWn3ZryYY/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbysOne3O6rG_D98pcu_AHocF5x52Z7X8YvXtrLBKaNMYFM22gVUhRKI-g6VRklgZSa5/exec';
 const NOMOR_WA_ADMIN = '6289657160578';
 
 let DAFTAR_TOKO = [], currentVisit = null, selfieData = null, mediaStream = null, gpsData = null, orders = [];
@@ -353,27 +353,38 @@ async function selesaiKunjungan(){
 
   toast('⏳ Mengirim data...');
 
-  // 1. TAMBAHKAN PENDENGAR PESAN DARI IFRAME
-  // (Ini akan dieksekusi saat iframe selesai memproses data di Google)
-  window.addEventListener('message', function(event) {
+  // 1. PENDENGAR PESAN DARI IFRAME
+  const handleMessage = function(event) {
     if (event.data && event.data.type === 'bukaWA') {
-      // Iframe mengirimkan link WhatsApp, saatnya kita buka!
       toast('✅ Membuka WhatsApp...');
       
-      // Reset tampilan aplikasi sebelum pindah ke WA
+      // TRIK KLIK OTOMATIS (Bypass blokir browser HP)
+      const a = document.createElement('a');
+      a.href = event.data.link;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click(); // Browser menganggap ini klik manual pengguna
+      
+      // Hapus elemen setelah diklik
+      setTimeout(() => a.remove(), 1000);
+
+      // Reset tampilan aplikasi
       currentVisit = null; 
       orders = [];
       document.getElementById('activeVisitCard').classList.add('hidden');
       document.getElementById('checkinCard').classList.remove('hidden');
       document.getElementById('ci_lokasi').value = '';
       document.getElementById('selfiePreview').classList.add('hidden');
-
-      // Buka WA dari halaman utama (TIDAK DIBLOKIR HP)
-      window.location.href = event.data.link;
+      
+      // Hapus pendengar agar tidak bentrok di kunjungan berikutnya
+      window.removeEventListener('message', handleMessage);
     } else if (event.data && event.data.type === 'error') {
-      toast('❌ Gagal di server: ' + event.data.msg);
+      toast('❌ Gagal: ' + event.data.msg);
+      window.removeEventListener('message', handleMessage);
     }
-  }, { once: true }); // Hanya dengar sekali agar tidak tumpang tindih
+  };
+  
+  window.addEventListener('message', handleMessage);
 
   // 2. BUAT IFRAME TERSEMBUNYI
   let iframe = document.getElementById('iframe_kirim');
@@ -393,7 +404,6 @@ async function selesaiKunjungan(){
   form.style.display = 'none';
 
   const dataKirim = {
-    action: 'simpan', 
     tanggal: currentVisit.tanggal,
     toko: currentVisit.toko,
     jamMasuk: currentVisit.jamMasuk,
@@ -414,11 +424,10 @@ async function selesaiKunjungan(){
     form.appendChild(input);
   }
 
-  // 4. KIRIM KE IFRAME
+  // 4. KIRIM
   document.body.appendChild(form);
   form.submit();
   
-  // Hapus form setelah selesai agar bersih
   setTimeout(() => form.remove(), 5000);
 }
 </script>
